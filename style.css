@@ -1,0 +1,65 @@
+/* =====================================================================
+   이 파일이 하는 일: 화면 배치, 버튼 모양, 길게 눌러도 확대·복사 메뉴 안 뜨게 막기
+   (색은 settings.js에서 정합니다. 아래 --bg 같은 값은 게임이 시작될 때 덮어씁니다.)
+   ===================================================================== */
+
+:root{
+  --bg:#f6f5f2; --ink:#1d1d1f; --sub:#9a9a9f; --accent:#ff5a4e;
+  --font:-apple-system,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;
+}
+
+/* 화면 전체: 스크롤·확대·글자 선택·길게 누르기 메뉴·탭할 때 회색 번쩍임 막기 */
+html,body{
+  margin:0; height:100%; overflow:hidden;
+  background:var(--bg);
+  touch-action:none;                    /* 두 손가락 확대·두 번 탭 확대 막기 */
+  -webkit-user-select:none; user-select:none;   /* 글자 선택(복사 메뉴) 막기 */
+  -webkit-touch-callout:none;           /* 아이폰 길게 누르기 메뉴 막기 */
+  -webkit-tap-highlight-color:transparent;
+  overscroll-behavior:none;             /* 당겨서 새로고침 막기 */
+}
+
+[hidden]{ display:none !important; }
+
+/* 게임 화면 칸: 화면 전체를 덮고, 게임 그림은 가운데에 */
+#stage{
+  position:fixed; inset:0;
+  display:flex; justify-content:center;
+}
+canvas{ display:block; }
+
+/* 오른쪽 위 소리·진동 버튼 (엄지가 닿는 아래쪽을 피해 위에 둠) */
+#ui{
+  position:fixed; z-index:2;
+  top:calc(env(safe-area-inset-top, 0px) + 10px);
+  right:calc(env(safe-area-inset-right, 0px) + 10px);
+  display:flex; gap:6px;
+}
+#ui button{
+  font:700 12px/1 var(--font);
+  color:var(--ink); background:transparent;
+  border:1.5px solid var(--ink); border-radius:999px;
+  padding:7px 11px; cursor:pointer;
+  touch-action:none;
+  -webkit-user-select:none; user-select:none;
+}
+#ui button.off{ color:var(--sub); border-color:var(--sub); }
+
+/* 왼쪽 아래 아주 작은 버전 표시 ("판 1") — 폰에 새 파일이 왔는지 확인용 */
+#ver{
+  position:fixed; z-index:2; pointer-events:none;
+  left:calc(env(safe-area-inset-left, 0px) + 10px);
+  bottom:calc(env(safe-area-inset-bottom, 0px) + 8px);
+  font:600 10px/1 var(--font); color:var(--sub); opacity:.6;
+}
+
+/* 폰·태블릿을 가로로 눕혔을 때만 "세로로 돌려 주세요" 안내 (마우스 쓰는 컴퓨터는 안 뜸) */
+#rotate{
+  display:none; position:fixed; inset:0; z-index:5;
+  background:var(--bg); color:var(--ink);
+  align-items:center; justify-content:center;
+  font:800 20px/1.4 var(--font);
+}
+@media (orientation:landscape) and (pointer:coarse){
+  #rotate{ display:flex; }
+}
