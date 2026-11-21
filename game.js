@@ -15,12 +15,15 @@ const now = () => performance.now();
 // 그래서 게임 중 폰을 돌려 화면 크기가 바뀌어도 네모와 기둥이 함께 맞춰집니다 (B2).
 
 // ---------- 색 (밝은/어두운 화면) ----------
-let C;
+let C, darkMode = false;
+let skinsReady = false; // 스킨 버튼이 만들어진 뒤에야 색을 다시 칠함
 const darkQuery = matchMedia('(prefers-color-scheme: dark)');
 function pickColors(){
   const t = document.documentElement.dataset.theme;
   const dark = t === 'dark' || (t !== 'light' && darkQuery.matches);
+  darkMode = dark;
   C = dark ? SET.colors.dark : SET.colors.light;
+  if (skinsReady) paintSkins(); // 다크 모드가 바뀌면 스킨 버튼 색도 바꿈
   // 버튼·안내 글자 색도 같은 색으로 (style.css의 --bg 등을 덮어씀)
   const st = document.documentElement.style;
   st.setProperty('--bg', C.bg); st.setProperty('--ink', C.ink);
@@ -57,12 +60,64 @@ function readNumber(key){
   return Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0;
 }
 let best  = readNumber('kkuk_best');   // 최고 기록
-let plays = readNumber('kkuk_plays');  // 플레이 횟수 (한 판 = 1). 2단계 해금에 쓸 예정
+let plays = readNumber('kkuk_plays');  // 플레이 횟수 (한 판 = 1)
+
+// ---------- 스킨 (점수 달성 보상) ----------
+// 최고 기록이 스킨의 해제 점수 이상이면 열림. 그래서 이미 기록이 높은 사람은 바로 열린 상태.
+const SKINS = SET.skins, LOOK = SET.skinLook;
+const skinsEl = document.getElementById('skins');
+const isUnlocked = sk => best >= sk.unlock;
+let skinId = Store.get('kkuk_skin') || SKINS[0].id; // 고른 스킨 (저장됨)
+// 지금 쓸 스킨: 고른 게 없거나 잠겨 있으면 기본
+function currentSkin(){
+  const sk = SKINS.find(s => s.id === skinId);
+  return sk && isUnlocked(sk) ? sk : SKINS[0];
+}
+const skinColors = sk => darkMode ? sk.dark : sk.light;
+
+// 아래쪽 가운데 작은 네모 버튼 만들기 (게임 화면 칸 밖이라 눌러도 점프 안 됨)
+function buildSkins(){
+  skinsEl.innerHTML = '';
+  SKINS.forEach(sk => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.innerHTML = '<span class="frame"><span class="chip"><i></i></span></span><span class="cond"></span>';
+    b.addEventListener('click', () => {
+      b.blur(); // 스페이스바가 버튼을 다시 누르지 않게
+      if (!isUnlocked(sk)) return; // 잠긴 스킨은 못 고름
+      skinId = sk.id;
+      Store.set('kkuk_skin', skinId);
+      paintSkins();
+      Sound.tone(660, 0.06, 'triangle', 0.06);
+    });
+    skinsEl.appendChild(b);
+  });
+  skinsReady = true;
+}
+// 버튼 색·테두리·잠김 표시 다시 칠하기
+function paintSkins(){
+  const sel = currentSkin();
+  [...skinsEl.children].forEach((b, i) => {
+    const sk = SKINS[i], col = skinColors(sk), open = isUnlocked(sk);
+    b.classList.toggle('on', sk === sel);       // 고른 스킨은 테두리
+    b.classList.toggle('locked', !open);        // 잠긴 스킨은 흐리게
+    b.setAttribute('aria-label', sk.name + ' 스킨' + (open ? '' : ' (잠김, ' + sk.unlock + '점)'));
+    b.querySelector('.chip').style.background = col.body;
+    const inner = b.querySelector('.chip i');
+    inner.style.display = col.inner ? 'block' : 'none';
+    if (col.inner) inner.style.background = col.inner;
+    b.querySelector('.cond').textContent = open ? '' : sk.unlock + '점'; // 조건 작게
+  });
+}
+buildSkins();
+paintSkins();
 
 // ---------- 게임 상태 ----------
 // state: 'ready'(첫 화면) / 'idle'(기둥 위 대기) / 'charge'(힘 모으는 중) / 'fly'(점프 중) / 'fall'(떨어지는 중) / 'over'(게임 오버)
 let state, pillars, cur, player, camX, camFocus, score, combo, charge, jump;
 let shake = 0, parts = [], pops = [], rings = [];
+let trail = [];          // 점프 중 잔상 (금색 스킨)
+let announced = {};      // 이번 판에 "새 스킨 획득!"을 이미 띄운 스킨
 let overAt = 0, fallAt = 0, newBest = false, startBest = 0, passedBest = false;
 let wideIn = 0;          // 넓은 기둥까지 남은 기둥 수
 let made = 0;            // 이번 판에 만든 기둥 수 (처음 몇 개는 쉽게)
@@ -102,7 +157,7 @@ function fillAhead(){
 function reset(){
   score = 0; combo = 0; cur = 0; charge = 0;
   newBest = false; passedBest = false; startBest = best;
-  parts = []; pops = []; rings = [];
+  parts = []; pops = []; rings = []; trail = []; announced = {};
   wideIn = randInt(R.everyMin, R.everyMax);
   made = 0;
   pillars = [{x: 0, w: P.firstWidth}];
@@ -191,6 +246,14 @@ function addScore(gain){
     passedBest = true;
     best = score;
     Store.set('kkuk_best', best); // 넘는 순간마다 바로 저장 (B11)
+  }
+  // 처음으로 스킨 해제 점수를 넘는 순간 "새 스킨 획득!"
+  for (const sk of SKINS){
+    if (sk.unlock > 0 && startBest < sk.unlock && score >= sk.unlock && !announced[sk.id]){
+      announced[sk.id] = true;
+      pop('새 스킨 획득!', player.x, -F.playerSize * 5.7, C.accent, true);
+      Sound.tone(988, 0.2, 'triangle', 0.08);
+    }
   }
 }
 // "○점만 더!": 기록을 깨려면 몇 점 더 필요한지 (동점이 아니라 넘어야 함)
@@ -286,8 +349,15 @@ function update(dt){
     player.x = jump.x0 + jump.d * k;
     player.y = -4 * jump.h * k * (1 - k);              // 포물선
     player.rot = jump.d > 0.05 ? k * Math.PI * 2 : 0;  // 한 바퀴 회전
+    // 잔상 기록 (잔상 색이 있는 스킨만, 점프하는 동안만)
+    if (skinColors(currentSkin()).trail && LOOK.trailCount > 0){
+      trail.push({x: player.x, y: player.y, rot: player.rot, sq: player.sq, life: 1});
+      if (trail.length > LOOK.trailCount) trail.shift();
+    }
     if (k >= 1){ player.y = 0; player.rot = 0; land(); }
   }
+  for (const t of trail) t.life -= dt * LOOK.trailFade; // 잔상은 금방 사라짐
+  trail = trail.filter(t => t.life > 0);
   if (state === 'fall'){
     player.vy += dt * 7;
     player.y += player.vy * dt;
@@ -337,15 +407,34 @@ function drawPillars(dip){
     }
   });
 }
-function drawPlayer(dip){
-  const s = F.playerSize * S, w = s * (1 + (1 - player.sq) * 0.55), h = s * player.sq;
-  const sx = toX(player.x), sy = GY + (state === 'charge' || state === 'idle' ? dip : 0) + player.y * S;
+// 네모 하나 그리기 (찌그러짐 sq·회전 rot 그대로). inner가 있으면 가운데 작은 네모도
+function drawSquare(sx, groundY, rot, sq, body, inner, alpha){
+  const s = F.playerSize * S, w = s * (1 + (1 - sq) * 0.55), h = s * sq;
   ctx.save();
-  ctx.translate(sx, sy - h / 2);
-  ctx.rotate(player.rot);
-  ctx.fillStyle = C.accent;
+  ctx.globalAlpha = alpha;
+  ctx.translate(sx, groundY - h / 2);
+  ctx.rotate(rot);
+  ctx.fillStyle = body;
   rrect(-w / 2, -h / 2, w, h, s * 0.2); ctx.fill();
+  if (inner){
+    const iw = w * LOOK.innerSize, ih = h * LOOK.innerSize;
+    ctx.fillStyle = inner;
+    rrect(-iw / 2, -ih / 2, iw, ih, s * LOOK.innerRound); ctx.fill();
+  }
   ctx.restore();
+}
+function drawPlayer(dip){
+  // 네모 색은 고른 스킨을 따라감 (빨간 선·"완벽!" 같은 다른 빨간색은 그대로)
+  const col = skinColors(currentSkin());
+  // 잔상: 오래된 것일수록 흐리게, 네모 뒤에
+  if (col.trail){
+    trail.forEach((t, i) => {
+      const a = LOOK.trailAlpha * t.life * (i + 1) / trail.length;
+      drawSquare(toX(t.x), GY + t.y * S, t.rot, t.sq, col.trail, null, a);
+    });
+  }
+  const sy = GY + (state === 'charge' || state === 'idle' ? dip : 0) + player.y * S;
+  drawSquare(toX(player.x), sy, player.rot, player.sq, col.body, col.inner, 1);
 }
 function draw(){
   ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
@@ -414,6 +503,12 @@ let last = now();
 function loop(t){
   const dt = Math.min((t - last) / 1000, 1 / 30); last = t;
   update(dt); draw();
+  // 스킨 고르기는 첫 화면·게임 오버 화면에서만 보임
+  const showSkins = state === 'ready' || state === 'over';
+  if (skinsEl.hidden === showSkins){
+    skinsEl.hidden = !showSkins;
+    if (showSkins) paintSkins(); // 방금 해제된 스킨 반영
+  }
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);

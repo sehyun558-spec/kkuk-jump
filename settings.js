@@ -112,6 +112,38 @@ const SETTINGS = {
     maxWidthRatio: 0.6,  // 넓은 컴퓨터 화면에서 게임 칸 너비 = 화면 높이 × 이 값 (폰 느낌 유지)
   },
 
+  // ---------- 스킨 (점수 달성 보상) ----------
+  // 최고 기록이 unlock 점수 이상이면 그 스킨이 열립니다. (0 = 처음부터 사용 가능)
+  // 색은 밝은 화면(light)·다크 모드(dark)를 따로 정합니다.
+  //   body  = 네모 색
+  //   inner = 안쪽 작은 네모 색 (없으면 안쪽 네모 없음)
+  //   trail = 점프할 때 따라오는 잔상 색 (없으면 잔상 없음)
+  // 순서를 바꾸면 고르는 버튼 순서도 바뀝니다.
+  skins: [
+    {
+      id: 'basic', name: '기본', unlock: 0,
+      light: { body: '#ff5a4e' },   // 코랄 빨강 (지금 네모)
+      dark:  { body: '#ff6a5c' },
+    },
+    {
+      id: 'violet', name: '보라', unlock: 10,
+      light: { body: '#7C6CF2' },   // 보라빛 블루
+      dark:  { body: '#9A8DF7' },   // 다크 모드용: 살짝 밝게
+    },
+    {
+      id: 'gold', name: '금색', unlock: 50,
+      light: { body: '#F2B53A', inner: '#FFE3A3', trail: '#F2B53A' },
+      dark:  { body: '#F5C04F', inner: '#FFEBBD', trail: '#F5C04F' }, // 다크 모드용: 살짝 밝게
+    },
+  ],
+  skinLook: {
+    innerSize: 0.45,     // 안쪽 네모 크기 (바깥 네모의 45%)
+    innerRound: 0.08,    // 안쪽 네모 모서리 둥글기 (네모 크기 기준). 0이면 → 각진 모서리
+    trailCount: 6,       // 잔상 개수. 0이면 → 잔상 없음
+    trailAlpha: 0.22,    // 잔상 진하기 (0~1). 작게 하면 → 더 은은하게
+    trailFade: 7,        // 잔상이 사라지는 속도. 크게 하면 → 더 짧게 따라옴
+  },
+
   // ---------- 색 ----------
   // 폰이 다크 모드면 dark, 아니면 light를 씁니다.
   colors: {

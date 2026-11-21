@@ -10,7 +10,7 @@
   //    이 숫자 하나로 모든 파일에 꼬리표가 붙어서, 폰이 옛 파일을 쓰지 않습니다.
   //    화면 왼쪽 아래 "판 ○" 숫자가 이것과 같으면 새 파일이 잘 온 것입니다.
   // =====================================================================
-  var VERSION = 2;
+  var VERSION = 3;
   document.write('<link rel="stylesheet" href="style.css?v=' + VERSION + '">');
 </script>
 </head>
@@ -24,6 +24,9 @@
   <button id="btnSound" type="button">소리 켜짐</button>
   <button id="btnVibe" type="button">진동 켜짐</button>
 </div>
+
+<!-- 아래쪽 가운데 스킨 고르기 (첫 화면·게임 오버 화면에서만 보임, 눌러도 점프 안 됨) -->
+<div id="skins" hidden></div>
 
 <!-- 왼쪽 아래 버전 표시 -->
 <div id="ver"></div>
