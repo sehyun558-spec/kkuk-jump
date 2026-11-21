@@ -4,7 +4,7 @@
 // =====================================================================
 (() => {
 const SET = SETTINGS;
-const J = SET.jump, P = SET.pillar, R = SET.rest, JD = SET.judge, FX = SET.effects, F = SET.feel;
+const J = SET.jump, P = SET.pillar, R = SET.rest, WU = SET.warmup, JD = SET.judge, FX = SET.effects, F = SET.feel;
 
 const stage = document.getElementById('stage');
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
@@ -65,14 +65,21 @@ let state, pillars, cur, player, camX, camFocus, score, combo, charge, jump;
 let shake = 0, parts = [], pops = [], rings = [];
 let overAt = 0, fallAt = 0, newBest = false, startBest = 0, passedBest = false;
 let wideIn = 0;          // 넓은 기둥까지 남은 기둥 수
+let made = 0;            // 이번 판에 만든 기둥 수 (처음 몇 개는 쉽게)
 let chargeFrom = 'idle'; // 힘 모으기를 취소하면 돌아갈 상태
 let firstGame = true;    // 첫 점프 전에만 설명 화면
 
 const randInt = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 const camGoal = () => camFocus - (W / S) * SET.screen.playerAt;
 
-// 새 기둥 만들기: 점수가 오를수록 좁고 멀어짐 + 가끔 넓은 기둥
+// 새 기둥 만들기: 처음 몇 개는 쉽게 → 점수가 오를수록 좁고 멀어짐 + 가끔 넓은 기둥
 function newPillar(prevRight){
+  made++;
+  if (made <= WU.pillars){
+    // 처음 구간: 넓고, 너비와 거리가 고른 기둥
+    const w = WU.width * (1 - WU.widthRandom + Math.random() * 2 * WU.widthRandom);
+    return {x: prevRight + WU.gapMin + Math.random() * WU.gapRandom, w, wide: false};
+  }
   const lv = Math.min(score / P.hardestScore, 1); // 0(쉬움) ~ 1(가장 어려움)
   let w, wide = false;
   if (score >= R.fromScore && --wideIn <= 0){
@@ -97,6 +104,7 @@ function reset(){
   newBest = false; passedBest = false; startBest = best;
   parts = []; pops = []; rings = [];
   wideIn = randInt(R.everyMin, R.everyMax);
+  made = 0;
   pillars = [{x: 0, w: P.firstWidth}];
   fillAhead();
   player = {x: P.firstWidth / 2, y: 0, vy: 0, sq: 1, rot: 0, dir: 1};
@@ -193,21 +201,28 @@ function needText(){
 }
 
 // ---------- 착지 판정 ----------
+// 기둥 위에 있나? (몰래 봐주기: 끝에서 edgeForgive만큼 벗어나도 위에 있는 걸로 침)
+const onPillar = (px, p) => px >= p.x - JD.edgeForgive && px <= p.x + p.w + JD.edgeForgive;
+
 function land(){
-  const px = player.x;
+  let px = player.x;
   const c = pillars[cur];
   // 거의 안 뛰어서 지금 기둥 위에 그대로
-  if (px >= c.x && px <= c.x + c.w){ state = 'idle'; player.sq = 0.8; Sound.tone(260, 0.05, 'sine', 0.05); return; }
+  if (onPillar(px, c)){
+    player.x = Math.min(Math.max(px, c.x), c.x + c.w);
+    state = 'idle'; player.sq = 0.8; Sound.tone(260, 0.05, 'sine', 0.05); return;
+  }
 
   // 앞 기둥 중 어디에 내렸나 (다음 기둥을 넘어 그 뒤 기둥에 내려도 찾음, B1)
   let j = -1;
   for (let i = cur + 1; i < pillars.length; i++){
-    const p = pillars[i];
-    if (px >= p.x && px <= p.x + p.w){ j = i; break; }
+    if (onPillar(px, pillars[i])){ j = i; break; }
   }
 
   if (j > 0){
     const n = pillars[j];
+    // 봐준 착지면 네모를 기둥 끝으로 살짝 당김 (그러면 "아슬아슬!"이 뜸)
+    px = player.x = Math.min(Math.max(px, n.x), n.x + n.w);
     const center = n.x + n.w / 2, dist = Math.abs(px - center);
     const edge = Math.min(px - n.x, n.x + n.w - px);
     let gain = 1;
@@ -245,7 +260,7 @@ function land(){
     const d = Math.min(Math.abs(px - p.x), Math.abs(px - (p.x + p.w)));
     if (d < near){ near = d; np = p; }
   }
-  if (near < JD.missNear) pop('아깝다!', px, -F.playerSize * 3, C.accent, true);
+  if (near - JD.edgeForgive < JD.missNear) pop('아깝다!', px, -F.playerSize * 3, C.accent, true);
   player.dir = px < np.x ? -1 : 1;
   player.vy = 0; state = 'fall'; fallAt = now();
   shake = FX.shakeFail; Sound.buzz([30, 40, 70]);
