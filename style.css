@@ -45,14 +45,39 @@ canvas{ display:block; }
 }
 #ui button.off{ color:var(--sub); border-color:var(--sub); }
 
-/* 아래쪽 가운데 스킨 고르기: 작은 네모 3개 */
+/* ---------- 스킨 창 ---------- */
+/* 화면 전체를 덮는 칸: 뒤쪽 게임 화면을 반투명하게 살짝 가림 */
+#skinModal{
+  position:fixed; inset:0; z-index:4;
+  display:flex; align-items:center; justify-content:center;
+  touch-action:none;
+}
+#skinModal::before{          /* 반투명 막 (바탕색을 72% 진하기로) */
+  content:""; position:absolute; inset:0;
+  background:var(--bg); opacity:.72;
+}
+#skinModal .sheet{           /* 가운데 작은 창 */
+  position:relative;
+  background:var(--bg); color:var(--ink);
+  border:1.5px solid var(--ink); border-radius:18px;
+  padding:16px 22px 14px;
+  max-width:min(300px, calc(100vw - 48px));
+}
+#skinModal .title{
+  font:800 13px/1 var(--font); text-align:center;
+  margin:2px 0 16px;
+}
+#skinModal .close{           /* 오른쪽 위 X */
+  position:absolute; top:6px; right:6px;
+  width:32px; height:32px; padding:0;
+  background:transparent; border:0; cursor:pointer;
+  font:600 14px/1 var(--font); color:var(--sub);
+  touch-action:none;
+}
+/* 스킨 네모들: 가로로 나란히, 많아지면 다음 줄로 */
 #skins{
-  position:fixed; z-index:2;
-  left:50%; transform:translateX(-50%);
-  bottom:calc(env(safe-area-inset-bottom, 0px) + 28px);
-  display:flex; gap:14px;
-  background:var(--bg);     /* 뒤에 검은 기둥이 있어도 잘 보이게 바탕색 받침 */
-  padding:8px 12px 6px; border-radius:16px;
+  display:flex; flex-wrap:wrap; justify-content:center;
+  gap:12px 14px;
 }
 #skins button{
   display:flex; flex-direction:column; align-items:center; gap:5px;
@@ -60,18 +85,18 @@ canvas{ display:block; }
   touch-action:none; -webkit-user-select:none; user-select:none;
   font:600 10px/1 var(--font); color:var(--sub);
 }
-#skins .frame{               /* 고른 스킨은 이 테두리가 진해짐 */
-  width:34px; height:34px; box-sizing:border-box;
-  border:2px solid transparent; border-radius:10px;
+#skins .frame{               /* 지금 쓰는 스킨은 이 테두리가 진해짐 */
+  width:48px; height:48px; box-sizing:border-box;
+  border:2px solid transparent; border-radius:13px;
   display:flex; align-items:center; justify-content:center;
 }
 #skins button.on .frame{ border-color:var(--ink); }
 #skins .chip{                /* 스킨 미리보기 네모 */
-  position:relative; width:22px; height:22px; border-radius:5px;
+  position:relative; width:30px; height:30px; border-radius:7px;
 }
 #skins .chip i{              /* 금색 스킨의 안쪽 작은 네모 */
   position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
-  width:45%; height:45%; border-radius:2px;
+  width:45%; height:45%; border-radius:3px;
 }
 #skins button.locked{ cursor:default; }
 #skins button.locked .chip{ opacity:.25; }  /* 잠긴 스킨은 흐리게 */

@@ -71,7 +71,7 @@ let skinId = Store.get('kkuk_skin') || SKINS[0].id; // 고른 스킨 (저장됨)
 // 지금 쓸 스킨: 고른 게 없거나 잠겨 있으면 기본
 function currentSkin(){
   const sk = SKINS.find(s => s.id === skinId);
-  return sk && isUnlocked(sk) ? sk : SKINS[0];
+  return sk && isUnlocked(sk) ? sk : (SKINS.find(isUnlocked) || SKINS[0]); // 열린 스킨 중 첫 번째
 }
 const skinColors = sk => darkMode ? sk.dark : sk.light;
 
@@ -111,6 +111,25 @@ function paintSkins(){
 }
 buildSkins();
 paintSkins();
+
+// ---------- 스킨 창 열기·닫기 ----------
+const btnSkin = document.getElementById('btnSkin');
+const skinModal = document.getElementById('skinModal');
+let skinOpen = false; // 창이 열려 있으면 게임 조작을 모두 막음
+function openSkins(){
+  if (state !== 'ready' && state !== 'over') return;
+  paintSkins(); // 방금 해제된 스킨 반영
+  skinModal.hidden = false; skinOpen = true;
+}
+function closeSkins(){
+  skinModal.hidden = true; skinOpen = false;
+}
+btnSkin.addEventListener('click', () => { btnSkin.blur(); openSkins(); });
+skinModal.querySelector('.close').addEventListener('click', closeSkins);
+// 창 바깥(반투명 막)을 누르면 닫힘. 창 안을 누른 건 무시
+skinModal.addEventListener('click', e => { if (e.target === skinModal) closeSkins(); });
+// 창은 게임 칸 위에 덮여 있어서, 창이나 막을 누른 손가락은 게임으로 전달되지 않음
+// (그래서 창을 닫으려고 누른 것도 점프로 이어지지 않음)
 
 // ---------- 게임 상태 ----------
 // state: 'ready'(첫 화면) / 'idle'(기둥 위 대기) / 'charge'(힘 모으는 중) / 'fly'(점프 중) / 'fall'(떨어지는 중) / 'over'(게임 오버)
@@ -204,6 +223,7 @@ function cancelCharge(){
 // 게임 화면 칸에서만 게임 조작 (버튼은 이 칸 밖이라 눌러도 점프 안 됨, B9)
 stage.addEventListener('pointerdown', e => {
   e.preventDefault();
+  if (skinOpen) return;                                    // 스킨 창이 열려 있으면 점프 안 됨
   if (e.pointerType === 'mouse' && e.button !== 0) return; // 마우스 왼쪽 버튼만
   if (state === 'charge' && activeId !== null) return;    // 누르는 중에 다른 손가락은 무시 (B3)
   activeId = e.pointerId;
@@ -222,11 +242,16 @@ addEventListener('contextmenu', e => e.preventDefault());
 
 // 컴퓨터: 스페이스바로도 조작
 addEventListener('keydown', e => {
+  if (skinOpen){ // 스킨 창이 열려 있으면: Esc로 닫기, 스페이스바는 무시
+    if (e.code === 'Escape') closeSkins();
+    if (e.code === 'Space') e.preventDefault();
+    return;
+  }
   if (e.code !== 'Space') return;
   e.preventDefault();
   if (!e.repeat) press();
 });
-addEventListener('keyup', e => { if (e.code === 'Space') release(); });
+addEventListener('keyup', e => { if (e.code === 'Space' && !skinOpen) release(); });
 
 // 앱을 바꾸거나 화면이 꺼지면 힘 모으기 취소, 돌아오면 소리 깨우기
 document.addEventListener('visibilitychange', () => {
@@ -503,11 +528,11 @@ let last = now();
 function loop(t){
   const dt = Math.min((t - last) / 1000, 1 / 30); last = t;
   update(dt); draw();
-  // 스킨 고르기는 첫 화면·게임 오버 화면에서만 보임
-  const showSkins = state === 'ready' || state === 'over';
-  if (skinsEl.hidden === showSkins){
-    skinsEl.hidden = !showSkins;
-    if (showSkins) paintSkins(); // 방금 해제된 스킨 반영
+  // "스킨" 버튼은 첫 화면·게임 오버 화면에서만 보임
+  const showSkinBtn = state === 'ready' || state === 'over';
+  if (btnSkin.hidden === showSkinBtn){
+    btnSkin.hidden = !showSkinBtn;
+    if (!showSkinBtn) closeSkins();
   }
   requestAnimationFrame(loop);
 }
