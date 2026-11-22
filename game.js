@@ -68,6 +68,8 @@ const SKINS = SET.skins, LOOK = SET.skinLook;
 const skinsEl = document.getElementById('skins');
 const isUnlocked = sk => best >= sk.unlock;
 let skinId = Store.get('kkuk_skin') || SKINS[0].id; // 고른 스킨 (저장됨)
+// 예전 50점 금색('gold')을 골랐던 사람: 아직 100점 전이면 같은 자리의 은색으로
+if (skinId === 'gold' && best < (SKINS.find(s => s.id === 'gold') || {unlock: 0}).unlock) skinId = 'silver';
 // 지금 쓸 스킨: 고른 게 없거나 잠겨 있으면 기본
 function currentSkin(){
   const sk = SKINS.find(s => s.id === skinId);
@@ -81,7 +83,7 @@ function buildSkins(){
   SKINS.forEach(sk => {
     const b = document.createElement('button');
     b.type = 'button';
-    b.innerHTML = '<span class="frame"><span class="chip"><i></i></span></span><span class="cond"></span>';
+    b.innerHTML = '<span class="frame"><span class="chip"><i></i><b></b></span></span><span class="cond"></span>';
     b.addEventListener('click', () => {
       b.blur(); // 스페이스바가 버튼을 다시 누르지 않게
       if (!isUnlocked(sk)) return; // 잠긴 스킨은 못 고름
@@ -106,6 +108,7 @@ function paintSkins(){
     const inner = b.querySelector('.chip i');
     inner.style.display = col.inner ? 'block' : 'none';
     if (col.inner) inner.style.background = col.inner;
+    b.querySelector('.chip b').style.display = col.shine ? 'block' : 'none'; // 빛줄기
     b.querySelector('.cond').textContent = open ? '' : sk.unlock + '점'; // 조건 작게
   });
 }
@@ -135,7 +138,9 @@ skinModal.addEventListener('click', e => { if (e.target === skinModal) closeSkin
 // state: 'ready'(첫 화면) / 'idle'(기둥 위 대기) / 'charge'(힘 모으는 중) / 'fly'(점프 중) / 'fall'(떨어지는 중) / 'over'(게임 오버)
 let state, pillars, cur, player, camX, camFocus, score, combo, charge, jump;
 let shake = 0, parts = [], pops = [], rings = [];
-let trail = [];          // 점프 중 잔상 (금색 스킨)
+let trail = [];          // 점프 중 잔상 (trail이 있는 스킨)
+let ripples = [];        // 착지 파동 고리 (골드 스킨)
+const RP = SET.ripple;
 let announced = {};      // 이번 판에 "새 스킨 획득!"을 이미 띄운 스킨
 let overAt = 0, fallAt = 0, newBest = false, startBest = 0, passedBest = false;
 let wideIn = 0;          // 넓은 기둥까지 남은 기둥 수
@@ -176,7 +181,7 @@ function fillAhead(){
 function reset(){
   score = 0; combo = 0; cur = 0; charge = 0;
   newBest = false; passedBest = false; startBest = best;
-  parts = []; pops = []; rings = []; trail = []; announced = {};
+  parts = []; pops = []; rings = []; trail = []; ripples = []; announced = {};
   wideIn = randInt(R.everyMin, R.everyMax);
   made = 0;
   pillars = [{x: 0, w: P.firstWidth}];
@@ -289,6 +294,15 @@ function needText(){
 }
 
 // ---------- 착지 판정 ----------
+// 착지 파동: 발밑에서 얇은 고리가 옆으로 퍼지며 사라짐 (ripple 색이 있는 스킨만 = 골드)
+function addRipple(x, perfect){
+  const color = skinColors(currentSkin()).ripple;
+  if (!color) return;
+  for (let i = 0; i < RP.count; i++){
+    ripples.push({x, t: -i * RP.delay, perfect, color}); // 두 번째 고리는 조금 늦게 시작
+  }
+}
+
 // 기둥 위에 있나? (몰래 봐주기: 끝에서 edgeForgive만큼 벗어나도 위에 있는 걸로 침)
 const onPillar = (px, p) => px >= p.x - JD.edgeForgive && px <= p.x + p.w + JD.edgeForgive;
 
@@ -298,6 +312,7 @@ function land(){
   // 거의 안 뛰어서 지금 기둥 위에 그대로
   if (onPillar(px, c)){
     player.x = Math.min(Math.max(px, c.x), c.x + c.w);
+    addRipple(player.x, false);
     state = 'idle'; player.sq = 0.8; Sound.tone(260, 0.05, 'sine', 0.05); return;
   }
 
@@ -331,6 +346,7 @@ function land(){
       Sound.tone(330, 0.07, 'sine', 0.07); Sound.buzz(8);
       if (edge < JD.closeEdge) pop('아슬아슬!', px, -F.playerSize * 3.3, C.ink, true);
     }
+    addRipple(player.x, gain > 1); // gain > 1 이면 "완벽!" 착지
     addScore(gain);
     pop('+' + gain, player.x, -F.playerSize * 2.2, gain > 1 ? C.accent : C.ink, false);
     cur = j;
@@ -399,6 +415,8 @@ function update(dt){
   for (const p of pops){ p.y -= 0.18 * dt; p.life -= dt * 1.1; }
   pops = pops.filter(p => p.life > 0);
   for (const r of rings){ r.r += 0.5 * dt; r.life -= dt * 2.2; }
+  for (const r of ripples) r.t += dt;
+  ripples = ripples.filter(r => r.t < RP.time);
   rings = rings.filter(r => r.life > 0);
 }
 
@@ -433,18 +451,32 @@ function drawPillars(dip){
   });
 }
 // 네모 하나 그리기 (찌그러짐 sq·회전 rot 그대로). inner가 있으면 가운데 작은 네모도
-function drawSquare(sx, groundY, rot, sq, body, inner, alpha){
+// 네모 하나 그리기 (찌그러짐 sq·회전 rot 그대로 따라감)
+// look.body = 색, look.inner = 가운데 작은 네모 색, look.shine = 왼쪽 위 빛줄기
+function drawSquare(sx, groundY, rot, sq, look, alpha){
   const s = F.playerSize * S, w = s * (1 + (1 - sq) * 0.55), h = s * sq;
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.translate(sx, groundY - h / 2);
   ctx.rotate(rot);
-  ctx.fillStyle = body;
+  ctx.fillStyle = look.body;
   rrect(-w / 2, -h / 2, w, h, s * 0.2); ctx.fill();
-  if (inner){
+  if (look.inner){
     const iw = w * LOOK.innerSize, ih = h * LOOK.innerSize;
-    ctx.fillStyle = inner;
+    ctx.fillStyle = look.inner;
     rrect(-iw / 2, -ih / 2, iw, ih, s * LOOK.innerRound); ctx.fill();
+  }
+  if (look.shine){
+    // 왼쪽 위 얇은 흰 대각선 빛줄기: 가운데가 가장 밝고 양 끝은 흐려짐. 네모 밖으로 안 나가게 잘라냄
+    rrect(-w / 2, -h / 2, w, h, s * 0.2); ctx.clip();
+    const x1 = -w / 2 + w * 0.1, y1 = -h / 2 + h * 0.42, x2 = -w / 2 + w * 0.42, y2 = -h / 2 + h * 0.1;
+    const g = ctx.createLinearGradient(x1, y1, x2, y2);
+    g.addColorStop(0, 'rgba(255,255,255,0)');
+    g.addColorStop(0.5, 'rgba(255,255,255,1)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.globalAlpha = alpha * LOOK.shineAlpha;
+    ctx.strokeStyle = g; ctx.lineWidth = Math.max(1, s * LOOK.shineWidth); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
   }
   ctx.restore();
 }
@@ -455,11 +487,11 @@ function drawPlayer(dip){
   if (col.trail){
     trail.forEach((t, i) => {
       const a = LOOK.trailAlpha * t.life * (i + 1) / trail.length;
-      drawSquare(toX(t.x), GY + t.y * S, t.rot, t.sq, col.trail, null, a);
+      drawSquare(toX(t.x), GY + t.y * S, t.rot, t.sq, {body: col.trail}, a);
     });
   }
   const sy = GY + (state === 'charge' || state === 'idle' ? dip : 0) + player.y * S;
-  drawSquare(toX(player.x), sy, player.rot, player.sq, col.body, col.inner, 1);
+  drawSquare(toX(player.x), sy, player.rot, player.sq, col, 1);
 }
 function draw(){
   ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
@@ -473,6 +505,16 @@ function draw(){
   for (const r of rings){
     ctx.globalAlpha = Math.max(r.life, 0); ctx.strokeStyle = C.accent; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.ellipse(toX(r.x), GY, r.r * S, r.r * S * 0.32, 0, 0, Math.PI * 2); ctx.stroke();
+  }
+  // 골드 착지 파동: 처음엔 빠르게 퍼지다 느려지고, 퍼질수록 흐려짐
+  for (const r of ripples){
+    if (r.t < 0) continue; // 아직 시작 전 (두 번째 고리)
+    const k = r.t / RP.time, ease = 1 - Math.pow(1 - k, 3);
+    const start = F.playerSize * 0.6, end = r.perfect ? RP.perfectSize : RP.size;
+    const rad = (start + (end - start) * ease) * S;
+    ctx.globalAlpha = (r.perfect ? RP.perfectAlpha : RP.alpha) * (1 - k);
+    ctx.strokeStyle = r.color; ctx.lineWidth = RP.line * (r.perfect ? 1.5 : 1);
+    ctx.beginPath(); ctx.ellipse(toX(r.x), GY, rad, rad * RP.flat, 0, 0, Math.PI * 2); ctx.stroke();
   }
   ctx.globalAlpha = 1;
   for (const p of parts){

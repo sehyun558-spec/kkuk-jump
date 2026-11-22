@@ -131,17 +131,43 @@ const SETTINGS = {
       dark:  { body: '#9A8DF7' },   // 다크 모드용: 살짝 밝게
     },
     {
-      id: 'gold', name: '금색', unlock: 50,
-      light: { body: '#F2B53A', inner: '#FFE3A3', trail: '#F2B53A' },
-      dark:  { body: '#F5C04F', inner: '#FFEBBD', trail: '#F5C04F' }, // 다크 모드용: 살짝 밝게
+      id: 'silver', name: '은색', unlock: 50,
+      light: { body: '#ABAAB0', shine: true },  // 은색 + 왼쪽 위 흰 빛줄기
+      dark:  { body: '#C9C8CE', shine: true },  // 다크 모드용: 어두운 바탕에서 잘 보이게 더 밝게
+    },
+    {
+      id: 'gold', name: '골드', unlock: 100,
+      light: { body: '#D99E2B', shine: true, ripple: '#D99E2B' }, // 진한 금색 + 빛줄기 + 착지 파동
+      dark:  { body: '#EAB043', shine: true, ripple: '#EAB043' }, // 다크 모드용: 살짝 밝게
     },
   ],
+  // [스킨에 넣을 수 있는 것]
+  //   shine: true   → 왼쪽 위 얇은 흰 빛줄기
+  //   ripple: '색'  → 착지할 때 발밑에 퍼지는 고리 (이 색으로)
+  //   inner: '색'   → 가운데 작은 네모 / trail: '색' → 점프 잔상 (지금은 쓰는 스킨 없음)
   skinLook: {
     innerSize: 0.45,     // 안쪽 네모 크기 (바깥 네모의 45%)
     innerRound: 0.08,    // 안쪽 네모 모서리 둥글기 (네모 크기 기준). 0이면 → 각진 모서리
     trailCount: 6,       // 잔상 개수. 0이면 → 잔상 없음
     trailAlpha: 0.22,    // 잔상 진하기 (0~1). 작게 하면 → 더 은은하게
     trailFade: 7,        // 잔상이 사라지는 속도. 크게 하면 → 더 짧게 따라옴
+
+    // 빛줄기 (shine: true인 스킨)
+    shineAlpha: 0.8,     // 빛줄기 진하기 (0~1). 작게 하면 → 더 은은하게
+    shineWidth: 0.06,    // 빛줄기 굵기 (네모 크기 기준). 작게 하면 → 더 얇게
+  },
+
+  // ---------- 착지 파동 (골드 스킨 전용) ----------
+  ripple: {
+    count: 2,            // 고리 개수
+    delay: 0.07,         // 고리 사이 시간 차 (초). 두 번째 고리가 이만큼 늦게 퍼짐
+    time: 0.38,          // 고리 하나가 퍼지고 사라지는 시간 (초). 지금 전체 0.45초 안에 끝남
+    size: 0.2,           // 보통 착지: 고리가 퍼지는 가로 반지름 (기준 크기 단위)
+    perfectSize: 0.28,   // "완벽!" 착지: 더 크게
+    alpha: 0.45,         // 보통 착지: 고리 진하기 (0~1)
+    perfectAlpha: 0.75,  // "완벽!" 착지: 더 진하게
+    flat: 0.22,          // 타원 납작한 정도 (세로 ÷ 가로). 작게 하면 → 더 납작
+    line: 1.5,           // 고리 선 굵기 (픽셀). "완벽!"은 1.5배
   },
 
   // ---------- 색 ----------
