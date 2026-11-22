@@ -60,6 +60,20 @@ function readNumber(key){
   return Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0;
 }
 let best  = readNumber('kkuk_best');   // 최고 기록
+
+// ---------- 테스트 모드 ----------
+// 주소 끝에 ?test=9 처럼 붙이면: 매 판 9점에서 시작하고, 최고 기록도 9점인 것처럼 동작
+//   예) ?test=9 → 10점 스킨, ?test=49 → 50점 스킨, ?test=99 → 100점 스킨 획득 장면을 바로 볼 수 있음
+// 테스트 중에는 기록·플레이 횟수·고른 스킨을 저장하지 않아서 진짜 기록은 그대로입니다.
+const TEST = (() => {
+  const v = Number(new URLSearchParams(location.search).get('test'));
+  return Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
+})();
+if (TEST){
+  best = TEST;
+  document.getElementById('ver').textContent += ' · 테스트 ' + TEST + '점';
+}
+const save = (key, value) => { if (!TEST) Store.set(key, value); }; // 테스트 중엔 저장 안 함
 let plays = readNumber('kkuk_plays');  // 플레이 횟수 (한 판 = 1)
 
 // ---------- 스킨 (점수 달성 보상) ----------
@@ -88,7 +102,7 @@ function buildSkins(){
       b.blur(); // 스페이스바가 버튼을 다시 누르지 않게
       if (!isUnlocked(sk)) return; // 잠긴 스킨은 못 고름
       skinId = sk.id;
-      Store.set('kkuk_skin', skinId);
+      save('kkuk_skin', skinId);
       paintSkins();
       Sound.tone(660, 0.06, 'triangle', 0.06);
     });
@@ -179,7 +193,7 @@ function fillAhead(){
 }
 
 function reset(){
-  score = 0; combo = 0; cur = 0; charge = 0;
+  score = TEST; combo = 0; cur = 0; charge = 0; // 보통은 0점에서 시작 (테스트 모드면 그 점수에서)
   newBest = false; passedBest = false; startBest = best;
   parts = []; pops = []; rings = []; trail = []; ripples = []; announced = {};
   wideIn = randInt(R.everyMin, R.everyMax);
@@ -275,7 +289,7 @@ function addScore(gain){
     }
     passedBest = true;
     best = score;
-    Store.set('kkuk_best', best); // 넘는 순간마다 바로 저장 (B11)
+    save('kkuk_best', best); // 넘는 순간마다 바로 저장 (B11)
   }
   // 처음으로 스킨 해제 점수를 넘는 순간 "새 스킨 획득!"
   for (const sk of SKINS){
@@ -372,7 +386,7 @@ function land(){
 }
 function gameOver(){
   state = 'over'; overAt = now();
-  plays++; Store.set('kkuk_plays', plays);
+  plays++; save('kkuk_plays', plays);
   newBest = score > startBest;
   if (newBest) Sound.tone(784, 0.25, 'triangle', 0.1);
 }
