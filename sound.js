@@ -73,6 +73,25 @@ const Sound = (() => {
     return 523 * Math.pow(2, (SCALE[i % 5] + 12 * Math.floor(i / 5)) / 12);
   }
 
+  // 음 여러 개를 차례로 (gap 밀리초 간격)
+  function seq(notes, gap, dur, type, vol){
+    notes.forEach((f, i) => setTimeout(() => tone(f, dur, type, vol), i * gap));
+  }
+  // 새 스킨 획득 순간 (게임 중): 짧고 맑은 "띠링"
+  function chime(grade){
+    if (grade >= 2) seq([1175, 1568, 2093], 55, 0.16, 'triangle', 0.08);
+    else seq([1047, 1397], 70, 0.16, 'triangle', 0.07);
+  }
+  // 새 스킨 공개 (게임 오버 뒤): 등급 2는 더 화려하게
+  function fanfare(grade){
+    if (grade >= 2){
+      seq([784, 988, 1175, 1568], 85, 0.24, 'triangle', 0.1);
+      setTimeout(() => seq([2093, 2637, 3136, 2637, 3136], 45, 0.12, 'sine', 0.045), 360); // 반짝이는 소리
+    } else {
+      seq([880, 1175, 1397], 110, 0.26, 'sine', 0.08);
+    }
+  }
+
   // 진동 (꺼져 있거나 지원 안 하는 폰이면 아무것도 안 함)
   function buzz(pattern){
     if (!vibeOn || !canVibrate) return;
@@ -113,5 +132,5 @@ const Sound = (() => {
 
   paint();
 
-  return { wake, tone, note, buzz };
+  return { wake, tone, note, buzz, chime, fanfare };
 })();

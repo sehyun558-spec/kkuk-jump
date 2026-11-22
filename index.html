@@ -10,7 +10,7 @@
   //    이 숫자 하나로 모든 파일에 꼬리표가 붙어서, 폰이 옛 파일을 쓰지 않습니다.
   //    화면 왼쪽 아래 "판 ○" 숫자가 이것과 같으면 새 파일이 잘 온 것입니다.
   // =====================================================================
-  var VERSION = 6;
+  var VERSION = 7;
   document.write('<link rel="stylesheet" href="style.css?v=' + VERSION + '">');
 </script>
 </head>
@@ -32,6 +32,22 @@
     <button class="close" type="button" aria-label="닫기">✕</button>
     <div class="title" id="skinTitle">스킨</div>
     <div id="skins"></div> <!-- 스킨 네모들이 여기 들어감 (많아지면 다음 줄로) -->
+  </div>
+</div>
+
+<!-- 새 스킨 공개 화면: 게임 오버 뒤 점수 화면보다 먼저 뜸 -->
+<div id="reveal" hidden>
+  <div class="title">새 스킨 획득!</div>
+  <div class="box">
+    <div class="glow"></div>     <!-- 공개할 때 퍼지는 빛 -->
+    <div class="big"><b></b></div> <!-- 스킨 네모 (처음엔 회색 실루엣), b = 빛줄기 -->
+    <div class="flash"></div>    <!-- 탭했을 때 "번쩍" -->
+  </div>
+  <div class="name">&nbsp;</div>
+  <div class="hint">탭해서 열기</div>
+  <div class="actions" hidden>
+    <button class="use" type="button">바로 쓰기</button>
+    <button class="skip" type="button">닫기</button>
   </div>
 </div>
 

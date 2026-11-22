@@ -126,22 +126,23 @@ const SETTINGS = {
       dark:  { body: '#ff6a5c' },
     },
     {
-      id: 'violet', name: '보라', unlock: 10,
+      id: 'violet', name: '보라', unlock: 10, grade: 1,
       light: { body: '#7C6CF2' },   // 보라빛 블루
       dark:  { body: '#9A8DF7' },   // 다크 모드용: 살짝 밝게
     },
     {
-      id: 'silver', name: '은색', unlock: 50,
+      id: 'silver', name: '은색', unlock: 50, grade: 1,
       light: { body: '#ABAAB0', shine: true },  // 은색 + 왼쪽 위 흰 빛줄기
       dark:  { body: '#C9C8CE', shine: true },  // 다크 모드용: 어두운 바탕에서 잘 보이게 더 밝게
     },
     {
-      id: 'gold', name: '골드', unlock: 100,
+      id: 'gold', name: '골드', unlock: 100, grade: 2,
       light: { body: '#D99E2B', shine: true, ripple: '#D99E2B' }, // 진한 금색 + 빛줄기 + 착지 파동
       dark:  { body: '#EAB043', shine: true, ripple: '#EAB043' }, // 다크 모드용: 살짝 밝게
     },
   ],
   // [스킨에 넣을 수 있는 것]
+  //   grade: 1 또는 2 → 획득 연출 등급. 1 = 은은하게, 2 = 화려하게 (금색 빛 크게 + 조각 튀기 + 화려한 소리)
   //   shine: true   → 왼쪽 위 얇은 흰 빛줄기
   //   ripple: '색'  → 착지할 때 발밑에 퍼지는 고리 (이 색으로)
   //   inner: '색'   → 가운데 작은 네모 / trail: '색' → 점프 잔상 (지금은 쓰는 스킨 없음)
@@ -168,6 +169,32 @@ const SETTINGS = {
     perfectAlpha: 0.75,  // "완벽!" 착지: 더 진하게
     flat: 0.22,          // 타원 납작한 정도 (세로 ÷ 가로). 작게 하면 → 더 납작
     line: 1.5,           // 고리 선 굵기 (픽셀). "완벽!"은 1.5배
+  },
+
+  // ---------- 새 스킨 획득: 게임 중 짧은 신호 ----------
+  unlockFx: {
+    flashTime: 0.5,      // 화면 테두리가 반짝였다 사라지는 시간 (초)
+    flashWidth: 6,       // 테두리 반짝임 굵기 (픽셀)
+    flashAlpha: 0.9,     // 테두리 반짝임 진하기 (0~1)
+    slowScale: 0.35,     // 느려질 때 속도 (1 = 그대로, 0.35 = 35% 속도로 시작해서 원래대로 돌아옴)
+    slowTime: 0.3,       // 느려졌다가 원래대로 돌아오기까지 (초)
+    buzz: [25, 40, 60],  // 진동 패턴 (밀리초: 울림, 쉼, 울림 …). 진동 켜짐일 때만
+  },
+
+  // ---------- 새 스킨 획득: 게임 오버 뒤 공개 화면 ----------
+  reveal: {
+    size: 120,                   // 가운데 스킨 네모 크기 (픽셀)
+    silhouetteLight: '#C9C8CC',  // 공개 전 회색 실루엣 색 (밝은 화면)
+    silhouetteDark: '#3C3C42',   // 공개 전 회색 실루엣 색 (다크 모드)
+    flashTime: 0.35,             // 탭했을 때 "번쩍" 하는 시간 (초)
+    glowTime: 0.8,               // 빛이 퍼졌다 사라지는 시간 (초)
+    glow1: 1.7,                  // 등급 1(은은): 빛이 퍼지는 크기 (네모 크기의 몇 배)
+    glow1Alpha: 0.35,            // 등급 1: 빛 진하기 (0~1)
+    glow2: 2.8,                  // 등급 2(화려): 빛이 퍼지는 크기
+    glow2Alpha: 0.6,             // 등급 2: 빛 진하기
+    pieces: 22,                  // 등급 2: 사방으로 튀는 작은 네모 조각 개수
+    pieceDist: 150,              // 등급 2: 조각이 튀어 나가는 거리 (픽셀)
+    pieceTime: 0.9,              // 등급 2: 조각이 사라지기까지 (초)
   },
 
   // ---------- 색 ----------

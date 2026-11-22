@@ -133,10 +133,17 @@ paintSkins();
 const btnSkin = document.getElementById('btnSkin');
 const skinModal = document.getElementById('skinModal');
 let skinOpen = false; // 창이 열려 있으면 게임 조작을 모두 막음
+// 작은 빨간 점: 새 스킨을 얻고 아직 스킨 칸을 안 열어 봤으면 표시 (저장되어 껐다 켜도 유지)
+let skinDot = Store.get('kkuk_skin_new') === '1';
+function paintDot(){ btnSkin.classList.toggle('dot', skinDot); }
+function setDot(on){ skinDot = on; save('kkuk_skin_new', on ? '1' : '0'); paintDot(); }
+paintDot();
+
 function openSkins(){
   if (state !== 'ready' && state !== 'over') return;
   paintSkins(); // 방금 해제된 스킨 반영
   skinModal.hidden = false; skinOpen = true;
+  setDot(false); // 스킨 칸을 열어 봤으니 빨간 점 없앰
 }
 function closeSkins(){
   skinModal.hidden = true; skinOpen = false;
@@ -155,7 +162,11 @@ let shake = 0, parts = [], pops = [], rings = [];
 let trail = [];          // 점프 중 잔상 (trail이 있는 스킨)
 let ripples = [];        // 착지 파동 고리 (골드 스킨)
 const RP = SET.ripple;
-let announced = {};      // 이번 판에 "새 스킨 획득!"을 이미 띄운 스킨
+let announced = {};      // 이번 판에 이미 획득 신호를 낸 스킨
+let gotThisGame = [];    // 이번 판에 새로 얻은 스킨들 (게임 오버 뒤 공개 화면에서 차례로 보여 줌)
+let flash = null;        // 화면 테두리 반짝임 {color, t}
+let slowT = Infinity;    // 살짝 느려진 뒤 지난 시간 (Infinity = 느려지는 중 아님)
+const UF = SET.unlockFx;
 let overAt = 0, fallAt = 0, newBest = false, startBest = 0, passedBest = false;
 let wideIn = 0;          // 넓은 기둥까지 남은 기둥 수
 let made = 0;            // 이번 판에 만든 기둥 수 (처음 몇 개는 쉽게)
@@ -196,6 +207,7 @@ function reset(){
   score = TEST; combo = 0; cur = 0; charge = 0; // 보통은 0점에서 시작 (테스트 모드면 그 점수에서)
   newBest = false; passedBest = false; startBest = best;
   parts = []; pops = []; rings = []; trail = []; ripples = []; announced = {};
+  gotThisGame = []; flash = null; slowT = Infinity;
   wideIn = randInt(R.everyMin, R.everyMax);
   made = 0;
   pillars = [{x: 0, w: P.firstWidth}];
@@ -261,6 +273,10 @@ addEventListener('contextmenu', e => e.preventDefault());
 
 // 컴퓨터: 스페이스바로도 조작
 addEventListener('keydown', e => {
+  if (revealUp()){ // 공개 화면: 스페이스바·엔터로 공개, 게임 조작은 막음
+    if (e.code === 'Space' || e.code === 'Enter'){ e.preventDefault(); if (!e.repeat) openReveal(); }
+    return;
+  }
   if (skinOpen){ // 스킨 창이 열려 있으면: Esc로 닫기, 스페이스바는 무시
     if (e.code === 'Escape') closeSkins();
     if (e.code === 'Space') e.preventDefault();
@@ -270,7 +286,7 @@ addEventListener('keydown', e => {
   e.preventDefault();
   if (!e.repeat) press();
 });
-addEventListener('keyup', e => { if (e.code === 'Space' && !skinOpen) release(); });
+addEventListener('keyup', e => { if (e.code === 'Space' && !skinOpen && !revealUp()) release(); });
 
 // 앱을 바꾸거나 화면이 꺼지면 힘 모으기 취소, 돌아오면 소리 깨우기
 document.addEventListener('visibilitychange', () => {
@@ -291,12 +307,16 @@ function addScore(gain){
     best = score;
     save('kkuk_best', best); // 넘는 순간마다 바로 저장 (B11)
   }
-  // 처음으로 스킨 해제 점수를 넘는 순간 "새 스킨 획득!"
+  // 처음으로 스킨 해제 점수를 넘는 순간: 짧은 신호만 (자세한 건 게임 오버 뒤 공개 화면에서)
   for (const sk of SKINS){
     if (sk.unlock > 0 && startBest < sk.unlock && score >= sk.unlock && !announced[sk.id]){
       announced[sk.id] = true;
-      pop('새 스킨 획득!', player.x, -F.playerSize * 5.7, C.accent, true);
-      Sound.tone(988, 0.2, 'triangle', 0.08);
+      gotThisGame.push(sk);
+      setDot(true);                                        // 스킨 버튼에 빨간 점
+      flash = {color: skinColors(sk).body, t: 0};          // 화면 테두리가 스킨 색으로 반짝
+      slowT = 0;                                           // 게임이 살짝 느려졌다 돌아옴
+      Sound.buzz(UF.buzz);                                 // 진동 (켜짐일 때만)
+      Sound.chime(sk.grade || 1);                          // 효과음 (켜짐일 때만)
     }
   }
 }
@@ -389,7 +409,84 @@ function gameOver(){
   plays++; save('kkuk_plays', plays);
   newBest = score > startBest;
   if (newBest) Sound.tone(784, 0.25, 'triangle', 0.1);
+  if (gotThisGame.length) startReveal(gotThisGame.slice()); // 새 스킨을 얻었으면 공개 화면 먼저
 }
+
+// ---------- 새 스킨 공개 화면 ----------
+const RV = SET.reveal;
+const revealEl = document.getElementById('reveal');
+const rvBox = revealEl.querySelector('.box'), rvBig = revealEl.querySelector('.big');
+const rvGlow = revealEl.querySelector('.glow'), rvFlash = revealEl.querySelector('.flash');
+const rvName = revealEl.querySelector('.name'), rvHint = revealEl.querySelector('.hint');
+const rvActions = revealEl.querySelector('.actions');
+let rvQueue = [], rvSkin = null, rvOpened = false;
+const revealUp = () => !revealEl.hidden;
+
+function startReveal(list){
+  rvQueue = list;
+  revealEl.style.setProperty('--size', RV.size + 'px');
+  revealEl.hidden = false;
+  revealEl.animate([{opacity: 0}, {opacity: 1}], {duration: 220, easing: 'ease-out'});
+  nextReveal();
+}
+// 다음 스킨 보여 주기 (2개를 얻었으면 하나씩 차례로). 다 보면 점수 화면으로
+function nextReveal(){
+  rvSkin = rvQueue.shift() || null;
+  if (!rvSkin){ revealEl.hidden = true; return; }
+  rvOpened = false;
+  rvBig.style.background = darkMode ? RV.silhouetteDark : RV.silhouetteLight; // 회색 실루엣
+  rvBig.querySelector('b').style.display = 'none';
+  rvName.innerHTML = '&nbsp;';
+  rvHint.hidden = false; rvActions.hidden = true;
+  rvBox.animate([{transform: 'scale(.85)', opacity: 0}, {transform: 'scale(1)', opacity: 1}],
+    {duration: 260, easing: 'cubic-bezier(.2,.8,.2,1)'});
+}
+// 탭하면 번쩍 하면서 진짜 색 공개
+function openReveal(){
+  if (!rvSkin || rvOpened) return;
+  rvOpened = true;
+  const col = skinColors(rvSkin), grade = rvSkin.grade || 1;
+  rvBig.style.background = col.body;
+  rvBig.querySelector('b').style.display = col.shine ? 'block' : 'none';
+  rvFlash.animate([{opacity: 0.95}, {opacity: 0}], {duration: RV.flashTime * 1000, easing: 'ease-out'});
+  rvBox.animate([{transform: 'scale(1.14)'}, {transform: 'scale(1)'}], {duration: 380, easing: 'cubic-bezier(.2,.8,.2,1)'});
+  // 빛이 퍼짐: 등급 1은 은은하게, 등급 2는 크고 진하게
+  const big2 = grade >= 2;
+  rvGlow.style.background = 'radial-gradient(circle, ' + col.body + ' 0%, transparent 68%)';
+  rvGlow.animate([
+    {transform: 'scale(.6)', opacity: big2 ? RV.glow2Alpha : RV.glow1Alpha},
+    {transform: 'scale(' + (big2 ? RV.glow2 : RV.glow1) + ')', opacity: 0},
+  ], {duration: RV.glowTime * 1000, easing: 'ease-out'});
+  if (big2) burstPieces(col.body);
+  rvName.textContent = rvSkin.name + ' 스킨';
+  rvHint.hidden = true; rvActions.hidden = false;
+  Sound.fanfare(grade);
+  Sound.buzz(big2 ? [30, 40, 30, 40, 80] : [30, 50, 40]);
+}
+// 등급 2: 작은 네모 조각들이 사방으로 튀었다가 사라짐
+function burstPieces(color){
+  for (let i = 0; i < RV.pieces; i++){
+    const el = document.createElement('span');
+    el.className = 'piece'; el.style.background = color;
+    rvBox.appendChild(el);
+    const a = (i / RV.pieces) * Math.PI * 2 + Math.random() * 0.4;
+    const d = RV.pieceDist * (0.55 + Math.random() * 0.45);
+    const x = Math.cos(a) * d, y = Math.sin(a) * d, r = (Math.random() - 0.5) * 360;
+    el.animate([
+      {transform: 'translate(0,0) rotate(0deg) scale(1)', opacity: 1},
+      {transform: 'translate(' + x + 'px,' + y + 'px) rotate(' + r + 'deg) scale(.4)', opacity: 0},
+    ], {duration: RV.pieceTime * 1000 * (0.7 + Math.random() * 0.3), easing: 'cubic-bezier(.15,.7,.3,1)'})
+      .onfinish = () => el.remove();
+  }
+}
+// 화면 아무 데나 탭: 공개 / 버튼: 바로 쓰기·닫기
+revealEl.addEventListener('click', () => openReveal());
+revealEl.querySelector('.use').addEventListener('click', e => {
+  e.stopPropagation();
+  skinId = rvSkin.id; save('kkuk_skin', skinId); paintSkins(); // 바로 착용, 다음 판부터 이 스킨
+  nextReveal();
+});
+revealEl.querySelector('.skip').addEventListener('click', e => { e.stopPropagation(); nextReveal(); });
 
 // ---------- 움직임 계산 (1초에 60번쯤) ----------
 function update(dt){
@@ -577,13 +674,37 @@ function draw(){
   }
 }
 
+// 화면 테두리 반짝임: 스킨 색으로 한 번 반짝이고 사라짐
+function drawFlash(dt){
+  if (!flash) return;
+  flash.t += dt;
+  const k = flash.t / UF.flashTime;
+  if (k >= 1){ flash = null; return; }
+  const a = UF.flashAlpha * (k < 0.15 ? k / 0.15 : 1 - (k - 0.15) / 0.85); // 빠르게 켜졌다 천천히 꺼짐
+  ctx.save();
+  ctx.strokeStyle = flash.color;
+  ctx.globalAlpha = a * 0.25;                                        // 바깥 은은한 빛
+  ctx.lineWidth = UF.flashWidth * 5; ctx.strokeRect(0, 0, W, H);
+  ctx.globalAlpha = a;                                               // 안쪽 선명한 테두리
+  ctx.lineWidth = UF.flashWidth * 2; ctx.strokeRect(0, 0, W, H);
+  ctx.restore();
+}
+
 // ---------- 시작 ----------
 resize();
 reset();
 let last = now();
 function loop(t){
   const dt = Math.min((t - last) / 1000, 1 / 30); last = t;
-  update(dt); draw();
+  // 새 스킨을 얻은 순간 살짝 느려졌다가 원래 속도로 (slowScale → 1)
+  let speed = 1;
+  if (slowT < UF.slowTime){
+    const k = slowT / UF.slowTime;
+    speed = UF.slowScale + (1 - UF.slowScale) * k * k;
+    slowT += dt;
+  }
+  update(dt * speed); draw();
+  drawFlash(dt);
   // "스킨" 버튼은 첫 화면·게임 오버 화면에서만 보임
   const showSkinBtn = state === 'ready' || state === 'over';
   if (btnSkin.hidden === showSkinBtn){
