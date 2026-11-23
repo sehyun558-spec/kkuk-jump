@@ -10,7 +10,7 @@
   --glass:rgba(255,255,255,.6);       /* 창 바탕 (반투명 흰 유리) */
   --scrim:rgba(255,255,255,.22);      /* 창 뒤 살짝 가리는 막 */
   --useBg:#4A4866; --useText:#fff;    /* "바로 쓰기" 버튼 */
-  --font:"Jua",-apple-system,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;
+  --font:"Quicksand","Gowun Dodum",-apple-system,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;
 }
 
 /* 화면 전체: 스크롤·확대·글자 선택·길게 누르기 메뉴·탭할 때 회색 번쩍임 막기 */
@@ -22,7 +22,7 @@ html,body{
   -webkit-touch-callout:none;           /* 아이폰 길게 누르기 메뉴 막기 */
   -webkit-tap-highlight-color:transparent;
   overscroll-behavior:none;             /* 당겨서 새로고침 막기 */
-  font-synthesis:none;                  /* 둥근 글꼴을 억지로 굵게 만들지 않기 (뭉개짐 방지) */
+  font-synthesis:none;                  /* 한 굵기뿐인 글꼴을 억지로 굵게 만들지 않기 (뭉개짐 방지) */
 }
 
 [hidden]{ display:none !important; }
@@ -45,15 +45,21 @@ canvas{ display:block; }
   display:flex; gap:6px;
 }
 #ui button{
-  font:700 12.5px/1 var(--font);
+  width:38px; height:38px; padding:0;      /* 동그란 아이콘 버튼 */
+  display:flex; align-items:center; justify-content:center;
   color:var(--text); background:var(--pill);
-  border:0; border-radius:999px;
-  padding:8px 12px; cursor:pointer;
+  border:0; border-radius:50%; cursor:pointer;
   -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
   touch-action:none;
   -webkit-user-select:none; user-select:none;
 }
-#ui button.off{ opacity:.55; }          /* 꺼진 버튼은 흐리게 */
+#ui svg{ width:19px; height:19px; overflow:visible; }
+#ui svg .fill{ fill:currentColor; }
+#ui svg .line{ fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+#ui svg .slash{ display:none; stroke-width:2; }   /* 꺼짐 사선: 평소엔 숨김 */
+#ui button.off{ opacity:.6; }                     /* 꺼진 버튼은 흐리게 */
+#ui button.off .slash{ display:inline; }          /* + 사선 */
+#ui button.off .wave{ opacity:.35; }              /* + 물결·떨림도 흐리게 */
 
 /* ---------- (꺼 둔 기능) 새 것 공개 화면: 살짝 가린 화면 위 반투명 흰 유리 창 ---------- */
 #reveal{

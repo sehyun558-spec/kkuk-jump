@@ -10,13 +10,13 @@
   //    이 숫자 하나로 모든 파일에 꼬리표가 붙어서, 폰이 옛 파일을 쓰지 않습니다.
   //    화면 왼쪽 아래 "판 ○" 숫자가 이것과 같으면 새 파일이 잘 온 것입니다.
   // =====================================================================
-  var VERSION = 17;
+  var VERSION = 18;
   document.write('<link rel="stylesheet" href="style.css?v=' + VERSION + '">');
 </script>
-<!-- 둥근 글꼴 "주아" (구글 무료 글꼴). 못 불러와도 폰 기본 글꼴로 자연스럽게 보임 -->
+<!-- 글꼴: 영어·숫자 Quicksand (필요한 굵기 500·600·700만), 한글 고운돋움 (구글 무료 글꼴). 못 불러와도 폰 기본 글꼴로 보임 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Quicksand:wght@500;600;700&display=swap">
 </head>
 <body>
 
@@ -28,8 +28,22 @@
 
 <!-- 오른쪽 위 버튼 (누르면 설정만 바뀌고 점프는 안 됨) -->
 <div id="ui">
-  <button id="btnSound" type="button">소리 켜짐</button>
-  <button id="btnVibe" type="button">진동 켜짐</button>
+  <!-- 아이콘은 그림 파일이 아니라 코드(선과 도형)로 그림. 꺼지면 사선이 그어지고 흐려짐 -->
+  <button id="btnSound" type="button" aria-label="소리">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path class="fill" d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/>          <!-- 스피커 -->
+      <path class="line wave" d="M15.5 9.2a4 4 0 0 1 0 5.6"/>            <!-- 소리 물결 -->
+      <path class="line wave" d="M18 6.8a7.5 7.5 0 0 1 0 10.4"/>
+      <path class="line slash" d="M4.5 4.5l15 15"/>                     <!-- 꺼짐 사선 -->
+    </svg>
+  </button>
+  <button id="btnVibe" type="button" aria-label="진동">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect class="line" x="8.5" y="4.5" width="7" height="15" rx="2"/>  <!-- 폰 -->
+      <path class="line wave" d="M5.5 9v6M3 10.5v3M18.5 9v6M21 10.5v3"/>  <!-- 진동 떨림 -->
+      <path class="line slash" d="M4.5 4.5l15 15"/>
+    </svg>
+  </button>
 </div>
 
 <!-- (꺼 둔 기능) 새 것 공개 화면: 얻은 게 있을 때만 게임 오버 뒤에 뜸. 지금은 쓰이지 않음 -->

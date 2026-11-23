@@ -13,13 +13,16 @@ const stage = document.getElementById('stage');
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 const SYS_FONT = '-apple-system,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif';
 const UI = TH.ui;
-// 둥근 글꼴: 다 받아지면 그 글꼴로, 못 받으면 폰 기본 글꼴로 (게임은 그대로 돌아감)
-let fontReady = false;
-if (UI.font && document.fonts && document.fonts.load){
-  document.fonts.load('40px "' + UI.font + '"', '꾹점프0123456789').then(() => {
-    fontReady = document.fonts.check('40px "' + UI.font + '"');
-  }).catch(() => {});
+// ---------- 글꼴 ----------
+// 영어·숫자 = UI.fontEn (Quicksand), 한글 = UI.fontKo (고운돋움). 못 받아 오면 폰 기본 글꼴로 보임
+const FONT_EN = UI.fontEn ? '"' + UI.fontEn + '",' : '';
+const FONT_KO = UI.fontKo ? '"' + UI.fontKo + '",' : '';
+if (document.fonts && document.fonts.load){ // 화면에 쓰기 전에 미리 받아 둠 (필요한 굵기만)
+  if (UI.fontEn) [UI.weight, UI.weightBig].forEach(w => document.fonts.load(w + ' 40px "' + UI.fontEn + '"', 'BEST 0123456789').catch(() => {}));
+  if (UI.fontKo) document.fonts.load('400 40px "' + UI.fontKo + '"', '꾹점프').catch(() => {});
 }
+const T = SET.texts;                                   // 화면에 나오는 말 (settings.js의 texts)
+const fmt = (tpl, n) => String(tpl).replace('{n}', n); // {n} 자리에 숫자 넣기
 const now = () => performance.now();
 
 // 게임 속 위치·크기는 모두 "기준 크기(S)" 단위로 계산하고, 그릴 때만 픽셀로 바꿉니다.
@@ -38,7 +41,7 @@ function pickColors(){
   const st = document.documentElement.style;
   const u = dark ? UI.dark : UI.light; // 버튼·창 색 (테마의 ui)
   for (const k of ['text', 'soft', 'pill', 'glass', 'scrim', 'useBg', 'useText']) st.setProperty('--' + k, u[k]);
-  st.setProperty('--font', (UI.font ? '"' + UI.font + '",' : '') + SYS_FONT);
+  st.setProperty('--font', FONT_EN + FONT_KO + SYS_FONT); // 버튼·창 글자도 같은 글꼴
   bgSnap = true; // 하늘을 새 모드 색으로 바로 맞춤
 }
 pickColors();
@@ -279,7 +282,7 @@ function addScore(gain){
   if (score > best){
     // 게임 중 기록을 넘는 순간 "신기록!" (첫 기록일 땐 안 띄움)
     if (startBest > 0 && !passedBest){
-      pop('신기록!', player.x, -F.playerSize * 4.5, true);
+      pop(T.newBestLive, player.x, -F.playerSize * 4.5, true);
       Sound.tone(784, 0.18, 'triangle', 0.08);
     }
     passedBest = true;
@@ -303,7 +306,7 @@ function unlockSignal(item){
 function needText(){
   if (startBest < SET.alert.minBest) return '';
   const need = startBest - score + 1;
-  return need >= 1 && need <= SET.alert.within ? need + '점만 더!' : '';
+  return need >= 1 && need <= SET.alert.within ? fmt(T.need, need) : '';
 }
 
 // ---------- 착지 판정 ----------
@@ -342,15 +345,15 @@ function land(){
       shake = FX.shakePerfect + Math.min(combo, FX.shakeComboMax) * FX.shakePerCombo;
       Sound.buzz(18);
       Sound.tone(Sound.note(combo), 0.2, 'triangle', 0.12);
-      pop(combo > 1 ? '완벽! ×' + combo : '완벽!', center, -F.playerSize * 3.3, true);
+      pop(combo > 1 ? fmt(T.perfectCombo, combo) : T.perfect, center, -F.playerSize * 3.3, true);
     } else {
       // 보통 착지 (기둥을 건너뛴 착지도 1점, 콤보는 끊김)
-      // 완벽 콤보가 comboEndMin 이상 쌓였다가 끊기면 "콤보 ○ 끝"을 잠깐 흐리게
-      if (combo >= SET.alert.comboEndMin) pop('콤보 ' + combo + ' 끝', px, -F.playerSize * 4.4, false, true);
+      // 완벽 콤보가 comboEndMin 이상 쌓였다가 끊기면 "COMBO ○"를 흐리게 띄워 아래로 사라지게
+      if (combo >= SET.alert.comboEndMin) pop(fmt(T.comboEnd, combo), px, -F.playerSize * 4.4, false, true);
       combo = 0;
       burst(px, ['rgba(255,255,255,0.85)'], 6);
       Sound.tone(330, 0.07, 'sine', 0.07); Sound.buzz(8);
-      if (edge < JD.closeEdge) pop('아슬아슬!', px, -F.playerSize * 3.3, true);
+      if (edge < JD.closeEdge) pop(T.close, px, -F.playerSize * 3.3, true);
     }
     addScore(gain);
     pop('+' + gain, player.x, -F.playerSize * 2.2, false);
@@ -369,7 +372,7 @@ function land(){
     const d = Math.min(Math.abs(px - p.x), Math.abs(px - (p.x + p.w)));
     if (d < near){ near = d; np = p; }
   }
-  if (near - JD.edgeForgive < JD.missNear) pop('아깝다!', px, -F.playerSize * 3, true);
+  if (near - JD.edgeForgive < JD.missNear) pop(T.miss, px, -F.playerSize * 3, true);
   player.dir = px < np.x ? -1 : 1;
   player.vy = 0; state = 'fall'; fallAt = now();
   shake = FX.shakeFail; Sound.buzz([30, 40, 70]);
@@ -500,7 +503,7 @@ function update(dt){
 
   for (const p of parts){ p.vy += 3 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt * 1.6; }
   parts = parts.filter(p => p.life > 0);
-  for (const p of pops){ p.y -= 0.18 * dt; p.life -= dt * 1.1; }
+  for (const p of pops){ p.y += (p.faint ? 0.1 : -0.18) * dt; p.life -= dt * 1.1; } // 보통은 위로, 흐린 글자는 아래로
   pops = pops.filter(p => p.life > 0);
   for (const r of rings){ r.r += 0.5 * dt; r.life -= dt * 2.2; }
   rings = rings.filter(r => r.life > 0);
@@ -516,17 +519,48 @@ function rrect(x, y, w, h, r){
   ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
   ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
 }
-// 글자 쓰기. shadow = true 이면 흰 글자 밑에 옅은 그림자 (어느 하늘에서도 잘 읽히게)
-function text(t, x, y, size, col, weight = 800, alpha = 1, shadow = false){
+// 글자 쓰기: 한 줄을 한글 덩어리와 영어·숫자 덩어리로 나눠 각자 글꼴로 이어서 씀
+//   (그래서 "BEST 31 · 1점만 더!"처럼 섞인 줄도 크기와 높이가 맞게 나옴)
+// shadow = true → 흰 글자 밑에 옅은 그림자 / track → 글자 사이 간격 (안 주면 영어 대문자만 UI.track)
+const HANGUL = /[\u1100-\u11FF\u3130-\u318F\uAC00-\uD7AF]/;
+const NEUTRAL = /[\s.,!?·~…:()\-]/; // 띄어쓰기·문장부호는 앞 글자와 같은 글꼴로
+function splitRuns(t){
+  const out = []; let ko = null, buf = '';
+  for (const ch of String(t)){
+    const k = NEUTRAL.test(ch) && ko !== null ? ko : HANGUL.test(ch);
+    if (ko === null || k === ko){ buf += ch; if (ko === null) ko = k; }
+    else { out.push({s: buf, ko}); buf = ch; ko = k; }
+  }
+  if (buf) out.push({s: buf, ko});
+  return out;
+}
+function text(t, x, y, size, col, weight = UI.weight, alpha = 1, shadow = false, track = null){
   ctx.globalAlpha = alpha; ctx.fillStyle = col;
-  // 둥근 글꼴은 원래 굵어서 굵기를 따로 주지 않음 (억지로 굵히면 뭉개짐)
-  ctx.font = fontReady ? size + 'px "' + UI.font + '",' + SYS_FONT : weight + ' ' + size + 'px ' + SYS_FONT;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  const parts = splitRuns(t).map(r => {
+    const font = r.ko ? '400 ' + (size * UI.koScale).toFixed(1) + 'px ' + FONT_KO + SYS_FONT   // 고운돋움은 한 굵기뿐
+                      : weight + ' ' + size + 'px ' + FONT_EN + SYS_FONT;
+    ctx.font = font;
+    const sp = r.ko ? 0 : (track !== null ? track : (/[A-Z]/.test(r.s) ? UI.track : 0)) * size;
+    let w = 0;
+    if (sp) for (const ch of r.s) w += ctx.measureText(ch).width + sp;
+    else w = ctx.measureText(r.s).width;
+    return {r, font, sp, w};
+  });
+  const last = parts[parts.length - 1];
+  const total = parts.reduce((a, p) => a + p.w, 0) - (last && last.sp ? last.sp : 0);
+  let cx = x - total / 2;
+  const base = y + size * 0.36; // y = 글자 가운데 높이
   if (shadow){
     ctx.shadowColor = (darkMode ? UI.dark : UI.light).shadow;
     ctx.shadowBlur = Math.max(4, size * 0.18); ctx.shadowOffsetY = Math.max(1, size * 0.03);
   }
-  ctx.fillText(t, x, y);
+  for (const p of parts){
+    ctx.font = p.font;
+    const yy = base + (p.r.ko ? size * UI.koShiftY : 0);
+    if (p.sp){ for (const ch of p.r.s){ ctx.fillText(ch, cx, yy); cx += ctx.measureText(ch).width + p.sp; } }
+    else { ctx.fillText(p.r.s, cx, yy); cx += p.w; }
+  }
   if (shadow){ ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0; }
   ctx.globalAlpha = 1;
 }
@@ -699,30 +733,33 @@ function draw(){
   // 떠오르는 글자: 흰색에 옅은 그림자 (어느 하늘에서도 잘 읽히게)
   for (const p of pops){
     const size = p.faint ? S * 0.045 : p.big ? S * 0.065 : S * 0.05;
-    text(p.text, toX(p.x), toY(p.y), size, '#fff', 800, Math.min(1, p.life * 1.5) * (p.faint ? 0.55 : 1), true);
+    text(p.text, toX(p.x), toY(p.y), size, '#fff', p.big ? UI.weightBig : UI.weight, Math.min(1, p.life * 1.5) * (p.faint ? 0.55 : 1), true);
   }
   ctx.restore();
 
-  // 게임 중 점수: 흰색 큰 숫자 + 옅은 그림자, 아래 작은 글자들도 흰색
+  // 게임 중 점수: 흰색 큰 숫자(Quicksand 굵게) + 옅은 그림자, 아래 BEST·COMBO
+  const Z = UI.size;
   if (state !== 'ready' && state !== 'over'){
-    const big = Math.min(S * 0.22, 104);
+    const big = Math.min(S * 0.22, Z.score);
     let y = H * 0.14;
-    text(String(score), W / 2, y, big, '#fff', 800, 1, true);
-    y += big * 0.72;
-    if (best > 0){ text('최고 ' + best, W / 2, y, 15, '#fff', 600, 0.85, true); y += 22; } // 기록이 없으면 안 보임 (B6)
-    if (combo > 1){ text('콤보 ' + combo, W / 2, y, 16, '#fff', 800, 1, true); y += 22; }
+    text(String(score), W / 2, y, big, '#fff', UI.weightBig, 1, true);
+    y += big * 0.7;
+    if (best > 0){ text(fmt(T.best, best), W / 2, y, Z.small, '#fff', UI.weight, 0.85, true); y += Z.small * 1.5; } // 기록이 없으면 안 보임 (B6)
+    if (combo > 1){ text(fmt(T.combo, combo), W / 2, y, Z.small, '#fff', UI.weightBig, 1, true); y += Z.small * 1.5; }
     const need = needText();
-    if (need) text(need, W / 2, y, 16, '#fff', 800, 0.95, true);
+    if (need) text(need, W / 2, y, Z.small + 1, '#fff', UI.weight, 0.95, true);
   }
 
-  // 첫 화면: "꾹 점프"가 둥실둥실 천천히 떠 있음
+  // 첫 화면: "꾹 점프"가 둥실둥실 천천히 떠 있고, 아래에 작은 "KKUK JUMP"
   if (state === 'ready'){
     const bob = Math.sin(now() / (UI.floatTime * 1000) * Math.PI * 2) * UI.floatTitle;
-    const ty = H * 0.2 + bob;
-    text('꾹 점프', W / 2, ty, Math.min(S * 0.17, 64), '#fff', 900, 1, true);
-    text('꾹 눌러서 힘을 모으고, 떼면 점프', W / 2, H * 0.2 + 58, 16, '#fff', 600, 0.9, true);
-    text('빛나는 선 위에 착지하면 완벽!', W / 2, H * 0.2 + 84, 16, '#fff', 700, 0.9, true);
-    if (best) text('최고 기록 ' + best, W / 2, H * 0.2 + 118, 14, '#fff', 600, 0.75, true);
+    const ts = Math.min(S * 0.17, Z.title), ty = H * 0.2 + bob;
+    text(T.title, W / 2, ty, ts, '#fff', 400, 1, true);
+    text(T.titleEn, W / 2, ty + ts * 0.72, Z.titleEn, '#fff', UI.weight, 0.7, true, UI.titleEnTrack);
+    const gy = H * 0.2 + ts * 0.72 + 44;
+    text(T.guide1, W / 2, gy, Z.guide, '#fff', 400, 0.9, true);
+    text(T.guide2, W / 2, gy + Z.guide * 1.6, Z.guide, '#fff', 400, 0.9, true);
+    if (best) text(fmt(T.titleBest, best), W / 2, gy + Z.guide * 1.6 + 34, Z.small, '#fff', UI.weight, 0.75, true);
   }
 
   // 게임 오버: 뿌연 반투명 막 위에 점수가 떠 있음
@@ -730,16 +767,16 @@ function draw(){
     const t = Math.min((now() - overAt) / 300, 1);
     ctx.globalAlpha = t; ctx.fillStyle = (darkMode ? UI.dark : UI.light).overVeil; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1;
     const cy = H * 0.36;
-    text('점수', W / 2, cy - 74, 17, '#fff', 600, 0.85 * t, true);
-    text(String(score), W / 2, cy, Math.min(S * 0.28, 128), '#fff', 900, t, true);
-    if (newBest) text('최고 기록 달성!', W / 2, cy + 76, 19, '#fff', 800, t, true);
+    text(T.score, W / 2, cy - 76, Z.label, '#fff', UI.weight, 0.85 * t, true);
+    text(String(score), W / 2, cy, Math.min(S * 0.28, Z.scoreOver), '#fff', UI.weightBig, t, true);
+    if (newBest) text(T.newBest, W / 2, cy + 78, Z.label + 2, '#fff', UI.weightBig, t, true);
     else if (best > 0){
       const need = needText();
-      text('최고 ' + best + (need ? '  ·  ' + need : ''), W / 2, cy + 76, 16, '#fff', 700, 0.85 * t, true);
+      text(fmt(T.overBest, best) + (need ? '  ·  ' + need : ''), W / 2, cy + 78, Z.label, '#fff', UI.weight, 0.85 * t, true);
     }
     // 숨 쉬듯 천천히 밝아졌다 흐려짐
     const breath = 0.5 - 0.5 * Math.cos(now() / (UI.breathTime * 1000) * Math.PI * 2);
-    text('탭해서 다시 하기', W / 2, H * 0.72, 18, '#fff', 800, t * (0.35 + 0.6 * breath), true);
+    text(T.retry, W / 2, H * 0.72, Z.retry, '#fff', 400, t * (0.35 + 0.6 * breath), true);
   }
 }
 

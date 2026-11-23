@@ -103,12 +103,13 @@ const Sound = (() => {
   const btnVibe  = document.getElementById('btnVibe');
 
   function paint(){
-    btnSound.textContent = soundOn ? '소리 켜짐' : '소리 꺼짐';
+    // 버튼은 아이콘. 꺼지면 'off' → 사선이 그어지고 흐려짐 (style.css)
     btnSound.classList.toggle('off', !soundOn);
     btnSound.setAttribute('aria-pressed', String(soundOn));
-    btnVibe.textContent = vibeOn ? '진동 켜짐' : '진동 꺼짐';
+    btnSound.setAttribute('aria-label', soundOn ? '소리 켜짐' : '소리 꺼짐');
     btnVibe.classList.toggle('off', !vibeOn);
     btnVibe.setAttribute('aria-pressed', String(vibeOn));
+    btnVibe.setAttribute('aria-label', vibeOn ? '진동 켜짐' : '진동 꺼짐');
   }
 
   // 아이폰처럼 진동이 안 되는 폰에서는 진동 버튼을 숨깁니다
