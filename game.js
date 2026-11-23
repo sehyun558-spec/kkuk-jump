@@ -164,10 +164,6 @@ let ripples = [];        // 착지 파동 고리 (골드 스킨)
 const RP = SET.ripple;
 let announced = {};      // 이번 판에 이미 획득 신호를 낸 스킨
 let gotThisGame = [];    // 이번 판에 새로 얻은 스킨들 (게임 오버 뒤 공개 화면에서 차례로 보여 줌)
-let landed = 0;          // 이번 판에 기둥에 착지한 횟수 (착지 예상 표시를 언제까지 보여 줄지)
-let guideAll = false;    // 생애 첫 판이면 착지 예상 표시를 끝까지
-let guideA = 1;          // 착지 예상 표시의 지금 진하기 (부드럽게 변함)
-const GD = SET.guide;
 let flash = null;        // 화면 테두리 반짝임 {color, t}
 let slowT = Infinity;    // 살짝 느려진 뒤 지난 시간 (Infinity = 느려지는 중 아님)
 const UF = SET.unlockFx;
@@ -212,7 +208,6 @@ function reset(){
   newBest = false; passedBest = false; startBest = best;
   parts = []; pops = []; rings = []; trail = []; ripples = []; announced = {};
   gotThisGame = []; flash = null; slowT = Infinity;
-  landed = 0; guideAll = GD.firstGameAll && plays === 0; guideA = guideTarget();
   wideIn = randInt(R.everyMin, R.everyMax);
   made = 0;
   pillars = [{x: 0, w: P.firstWidth}];
@@ -386,7 +381,6 @@ function land(){
       if (edge < JD.closeEdge) pop('아슬아슬!', px, -F.playerSize * 3.3, C.ink, true);
     }
     addRipple(player.x, gain > 1); // gain > 1 이면 "완벽!" 착지
-    landed++;
     addScore(gain);
     pop('+' + gain, player.x, -F.playerSize * 2.2, gain > 1 ? C.accent : C.ink, false);
     cur = j;
@@ -497,7 +491,6 @@ revealEl.querySelector('.skip').addEventListener('click', e => { e.stopPropagati
 // ---------- 움직임 계산 (1초에 60번쯤) ----------
 function update(dt){
   if (state === 'charge') charge = Math.min(charge + dt * J.chargeSpeed, J.maxPower);
-  guideA += (guideTarget() - guideA) * Math.min(1, dt * 3); // 착지 예상 표시: 서서히 흐려짐
   // 찌그러짐: 힘이 찰수록 납작
   const target = state === 'charge' ? 1 - (charge / J.maxPower) * F.squash : 1;
   player.sq += (target - player.sq) * Math.min(1, dt * (state === 'charge' ? 30 : 12));
@@ -598,37 +591,7 @@ function drawSquare(sx, groundY, rot, sq, look, alpha){
   }
   ctx.restore();
 }
-// ---------- 착지 예상 표시 ----------
-// 얼마나 진하게 보여 줄지: 처음 pillars번 착지까지 또렷 → fadePillars번에 걸쳐 흐려짐 → 사라짐
-function guideTarget(){
-  if (guideAll) return 1;
-  if (landed < GD.pillars) return 1;
-  return Math.max(0, 1 - (landed - GD.pillars + 1) / (GD.fadePillars + 1));
-}
-// 꾹 누르는 동안: 지금 손을 떼면 그릴 포물선을 점으로, 떨어질 자리에 짧은 가로선
-function drawGuide(){
-  if (state !== 'charge' || guideA < 0.02 || GD.pillars <= 0) return; // 0이면 아예 끔
-  const d = charge, h = J.heightBase + d * J.heightPerDist;  // 실제 점프와 같은 계산
-  const half = F.playerSize / 2;                             // 네모 가운데 높이
-  ctx.save();
-  ctx.fillStyle = C.sub; ctx.strokeStyle = C.sub;
-  const r = Math.max(1.2, GD.dotSize * S);
-  for (let i = 1; i <= GD.dots; i++){
-    const k = i / (GD.dots + 1);
-    if (k < 0.12) continue;                                   // 네모에 가려지는 첫 부분은 생략
-    const x = player.x + d * k, y = -4 * h * k * (1 - k) - half;
-    ctx.globalAlpha = GD.alpha * guideA * (0.45 + 0.55 * k);  // 떨어질 쪽으로 갈수록 또렷
-    ctx.beginPath(); ctx.arc(toX(x), toY(y), r, 0, Math.PI * 2); ctx.fill();
-  }
-  ctx.globalAlpha = GD.alpha * guideA;
-  const lx = toX(player.x + d), mw = GD.markWidth * S / 2;
-  ctx.lineWidth = Math.max(2, r * 1.4); ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(lx - mw, GY - 1); ctx.lineTo(lx + mw, GY - 1); ctx.stroke();
-  ctx.restore();
-}
-
 function drawPlayer(dip){
-  drawGuide();
   // 네모 색은 고른 스킨을 따라감 (빨간 선·"완벽!" 같은 다른 빨간색은 그대로)
   const col = skinColors(currentSkin());
   // 잔상: 오래된 것일수록 흐리게, 네모 뒤에
