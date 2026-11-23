@@ -1,11 +1,18 @@
 /* =====================================================================
-   이 파일이 하는 일: 화면 배치, 버튼 모양, 길게 눌러도 확대·복사 메뉴 안 뜨게 막기
-   (색은 settings.js에서 정합니다. 아래 --bg 같은 값은 게임이 시작될 때 덮어씁니다.)
+   이 파일이 하는 일: 화면 배치, 버튼·창 모양, 길게 눌러도 확대·복사 메뉴 안 뜨게 막기
+   (색은 settings.js의 ui 묶음에서 정합니다. 아래 --text 같은 값은 게임이 시작될 때 덮어씁니다.)
    ===================================================================== */
 
 :root{
-  --bg:#f6f5f2; --ink:#1d1d1f; --sub:#9a9a9f; --accent:#ff5a4e;
-  --font:-apple-system,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;
+  --bg:#E9DDEB;                       /* 하늘 가운데 색 (게임이 계속 바꿔 줌) */
+  --text:#4A4866; --soft:#7C7A96;     /* 창·버튼 글자 */
+  --pill:rgba(255,255,255,.5);        /* 위쪽 버튼 바탕 */
+  --glass:rgba(255,255,255,.6);       /* 창 바탕 (반투명 흰 유리) */
+  --scrim:rgba(255,255,255,.22);      /* 창 뒤 살짝 가리는 막 */
+  --useBg:#4A4866; --useText:#fff;    /* "바로 쓰기" 버튼 */
+  --dot:#FF8A80;                      /* 새 스킨 알림 점 */
+  --select:#4A4866;                   /* 지금 쓰는 스킨 테두리 */
+  --font:"Jua",-apple-system,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;
 }
 
 /* 화면 전체: 스크롤·확대·글자 선택·길게 누르기 메뉴·탭할 때 회색 번쩍임 막기 */
@@ -17,6 +24,7 @@ html,body{
   -webkit-touch-callout:none;           /* 아이폰 길게 누르기 메뉴 막기 */
   -webkit-tap-highlight-color:transparent;
   overscroll-behavior:none;             /* 당겨서 새로고침 막기 */
+  font-synthesis:none;                  /* 둥근 글꼴을 억지로 굵게 만들지 않기 (뭉개짐 방지) */
 }
 
 [hidden]{ display:none !important; }
@@ -28,7 +36,7 @@ html,body{
 }
 canvas{ display:block; }
 
-/* 오른쪽 위 소리·진동 버튼 (엄지가 닿는 아래쪽을 피해 위에 둠) */
+/* ---------- 오른쪽 위 버튼 (스킨·소리·진동): 반투명 흰 알약, 테두리 없음 ---------- */
 #ui{
   position:fixed; z-index:2;
   top:calc(env(safe-area-inset-top, 0px) + 10px);
@@ -36,42 +44,49 @@ canvas{ display:block; }
   display:flex; gap:6px;
 }
 #ui button{
-  font:700 12px/1 var(--font);
-  color:var(--ink); background:transparent;
-  border:1.5px solid var(--ink); border-radius:999px;
-  padding:7px 11px; cursor:pointer;
+  font:700 12.5px/1 var(--font);
+  color:var(--text); background:var(--pill);
+  border:0; border-radius:999px;
+  padding:8px 12px; cursor:pointer;
+  -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
   touch-action:none;
   -webkit-user-select:none; user-select:none;
 }
-#ui button.off{ color:var(--sub); border-color:var(--sub); }
+#ui button.off{ opacity:.55; }          /* 꺼진 버튼은 흐리게 */
 
-/* ---------- 스킨 창 ---------- */
-/* 화면 전체를 덮는 칸: 뒤쪽 게임 화면을 반투명하게 살짝 가림 */
+/* "스킨" 버튼의 작은 점: 새 스킨을 얻고 아직 스킨 칸을 안 열어 봤을 때 */
+#btnSkin{ position:relative; }
+#btnSkin.dot::after{
+  content:""; position:absolute; top:-2px; right:-2px;
+  width:9px; height:9px; border-radius:50%;
+  background:var(--dot); box-shadow:0 0 6px var(--dot);
+}
+
+/* ---------- 스킨 창: 반투명 흰 유리 창 ---------- */
 #skinModal{
   position:fixed; inset:0; z-index:4;
   display:flex; align-items:center; justify-content:center;
+  background:var(--scrim);              /* 뒤쪽 화면을 살짝 가림 */
   touch-action:none;
 }
-#skinModal::before{          /* 반투명 막 (바탕색을 72% 진하기로) */
-  content:""; position:absolute; inset:0;
-  background:var(--bg); opacity:.72;
-}
-#skinModal .sheet{           /* 가운데 작은 창 */
+#skinModal .sheet{
   position:relative;
-  background:var(--bg); color:var(--ink);
-  border:1.5px solid var(--ink); border-radius:18px;
-  padding:16px 22px 14px;
+  background:var(--glass); color:var(--text);
+  -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
+  border-radius:22px;
+  box-shadow:0 10px 30px rgba(60,40,100,.12);
+  padding:18px 22px 16px;
   max-width:min(300px, calc(100vw - 48px));
 }
 #skinModal .title{
-  font:800 13px/1 var(--font); text-align:center;
+  font:700 15px/1 var(--font); text-align:center;
   margin:2px 0 16px;
 }
 #skinModal .close{           /* 오른쪽 위 X */
-  position:absolute; top:6px; right:6px;
+  position:absolute; top:7px; right:7px;
   width:32px; height:32px; padding:0;
   background:transparent; border:0; cursor:pointer;
-  font:600 14px/1 var(--font); color:var(--sub);
+  font:600 14px/1 var(--font); color:var(--soft);
   touch-action:none;
 }
 /* 스킨 네모들: 가로로 나란히, 많아지면 다음 줄로 */
@@ -83,18 +98,18 @@ canvas{ display:block; }
   display:flex; flex-direction:column; align-items:center; gap:5px;
   background:transparent; border:0; padding:0; margin:0; cursor:pointer;
   touch-action:none; -webkit-user-select:none; user-select:none;
-  font:600 10px/1 var(--font); color:var(--sub);
+  font:600 11px/1 var(--font); color:var(--soft);
 }
-#skins .frame{               /* 지금 쓰는 스킨은 이 테두리가 진해짐 */
+#skins .frame{               /* 지금 쓰는 스킨은 흰 테두리 */
   width:48px; height:48px; box-sizing:border-box;
-  border:2px solid transparent; border-radius:13px;
+  border:2px solid transparent; border-radius:14px;
   display:flex; align-items:center; justify-content:center;
 }
-#skins button.on .frame{ border-color:var(--ink); }
+#skins button.on .frame{ border-color:var(--select); }
 #skins .chip{                /* 스킨 미리보기 네모 */
   position:relative; width:30px; height:30px; border-radius:7px;
 }
-#skins .chip i{              /* 금색 스킨의 안쪽 작은 네모 */
+#skins .chip i{              /* 가운데 작은 네모 (inner가 있는 스킨) */
   position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
   width:45%; height:45%; border-radius:3px;
 }
@@ -105,26 +120,26 @@ canvas{ display:block; }
   opacity:.85;
 }
 #skins button.locked{ cursor:default; }
-#skins button.locked .chip{ opacity:.25; }  /* 잠긴 스킨은 흐리게 */
-#skins .cond{ height:10px; }                /* 조건 글자 칸 ("10점") */
+#skins button.locked .chip{ opacity:.3; }   /* 잠긴 스킨은 흐리게 */
+#skins .cond{ height:11px; }                /* 조건 글자 칸 ("10점") */
 
-/* "스킨" 버튼의 작은 빨간 점: 새 스킨을 얻고 아직 스킨 칸을 안 열어 봤을 때 */
-#btnSkin{ position:relative; }
-#btnSkin.dot::after{
-  content:""; position:absolute; top:-3px; right:-3px;
-  width:9px; height:9px; border-radius:50%;
-  background:var(--accent); border:2px solid var(--bg);
-}
-
-/* ---------- 새 스킨 공개 화면 (미색 바탕, 단순한 글씨) ---------- */
+/* ---------- 새 스킨 공개 화면: 살짝 가린 화면 위 반투명 흰 유리 창 ---------- */
 #reveal{
   position:fixed; inset:0; z-index:4;
-  background:var(--bg); color:var(--ink);
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  background:var(--scrim);
+  -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+  display:flex; align-items:center; justify-content:center;
   touch-action:none; cursor:pointer;
-  font-family:var(--font);
+  font-family:var(--font); color:var(--text);
 }
-#reveal .title{ font-weight:900; font-size:22px; margin-bottom:44px; }
+#reveal .card{
+  display:flex; flex-direction:column; align-items:center;
+  background:var(--glass);
+  -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
+  border-radius:28px; box-shadow:0 12px 36px rgba(60,40,100,.14);
+  padding:30px 30px 26px; min-width:min(250px, calc(100vw - 60px));
+}
+#reveal .title{ font-weight:700; font-size:23px; margin-bottom:34px; }
 #reveal .box{
   position:relative; width:var(--size,120px); height:var(--size,120px);
   display:flex; align-items:center; justify-content:center;
@@ -147,37 +162,37 @@ canvas{ display:block; }
   position:absolute; inset:0; border-radius:20%;
   background:#fff; opacity:0; pointer-events:none;
 }
-#reveal .piece{              /* 튀는 작은 네모 조각 (등급 2) */
+#reveal .piece{              /* 튀는 작은 조각 (등급 2) */
   position:absolute; left:50%; top:50%; width:8px; height:8px; margin:-4px 0 0 -4px;
-  border-radius:2px; pointer-events:none;
+  border-radius:50%; pointer-events:none;
 }
-#reveal .name{ margin-top:36px; font-weight:800; font-size:17px; min-height:20px; }
-#reveal .hint{ margin-top:10px; font-weight:600; font-size:14px; color:var(--sub);
-  animation:kkukBlink 1.1s ease-in-out infinite; }
-@keyframes kkukBlink{ 50%{ opacity:.35; } }
-#reveal .actions{ margin-top:28px; display:flex; gap:10px; }
+#reveal .name{ margin-top:30px; font-weight:700; font-size:18px; min-height:20px; }
+#reveal .hint{ margin-top:10px; font-weight:600; font-size:14px; color:var(--soft);
+  animation:kkukBreath 2.4s ease-in-out infinite; }
+@keyframes kkukBreath{ 50%{ opacity:.3; } }   /* 숨 쉬듯 천천히 깜빡 */
+#reveal .actions{ margin-top:24px; display:flex; gap:10px; }
 #reveal .actions[hidden]{ display:none; }
 #reveal .actions button{
-  font:800 15px/1 var(--font); padding:12px 22px; border-radius:999px; cursor:pointer;
-  border:1.5px solid var(--ink); touch-action:none;
+  font:700 15px/1 var(--font); padding:13px 22px; border-radius:999px; cursor:pointer;
+  border:0; touch-action:none;
 }
-#reveal .use{ background:var(--ink); color:var(--bg); }   /* 바로 쓰기: 꽉 찬 버튼 */
-#reveal .skip{ background:transparent; color:var(--ink); } /* 닫기: 테두리 버튼 */
+#reveal .use{ background:var(--useBg); color:var(--useText); }   /* 바로 쓰기: 꽉 찬 버튼 */
+#reveal .skip{ background:var(--pill); color:var(--text); }      /* 닫기: 반투명 버튼 */
 
 /* 왼쪽 아래 아주 작은 버전 표시 ("판 1") — 폰에 새 파일이 왔는지 확인용 */
 #ver{
   position:fixed; z-index:2; pointer-events:none;
   left:calc(env(safe-area-inset-left, 0px) + 10px);
   bottom:calc(env(safe-area-inset-bottom, 0px) + 8px);
-  font:600 10px/1 var(--font); color:var(--sub); opacity:.6;
+  font:600 10px/1 var(--font); color:var(--soft); opacity:.6;
 }
 
 /* 폰·태블릿을 가로로 눕혔을 때만 "세로로 돌려 주세요" 안내 (마우스 쓰는 컴퓨터는 안 뜸) */
 #rotate{
   display:none; position:fixed; inset:0; z-index:5;
-  background:var(--bg); color:var(--ink);
+  background:var(--bg); color:var(--text);
   align-items:center; justify-content:center;
-  font:800 20px/1.4 var(--font);
+  font:700 20px/1.4 var(--font);
 }
 @media (orientation:landscape) and (pointer:coarse){
   #rotate{ display:flex; }

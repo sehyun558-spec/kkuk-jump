@@ -10,9 +10,13 @@
   //    이 숫자 하나로 모든 파일에 꼬리표가 붙어서, 폰이 옛 파일을 쓰지 않습니다.
   //    화면 왼쪽 아래 "판 ○" 숫자가 이것과 같으면 새 파일이 잘 온 것입니다.
   // =====================================================================
-  var VERSION = 13;
+  var VERSION = 14;
   document.write('<link rel="stylesheet" href="style.css?v=' + VERSION + '">');
 </script>
+<!-- 둥근 글꼴 "주아" (구글 무료 글꼴). 못 불러와도 폰 기본 글꼴로 자연스럽게 보임 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
 </head>
 <body>
 
@@ -37,6 +41,7 @@
 
 <!-- 새 스킨 공개 화면: 게임 오버 뒤 점수 화면보다 먼저 뜸 -->
 <div id="reveal" hidden>
+  <div class="card"> <!-- 반투명 흰 유리 창 -->
   <div class="title">새 스킨 획득!</div>
   <div class="box">
     <div class="glow"></div>     <!-- 공개할 때 퍼지는 빛 -->
@@ -48,6 +53,7 @@
   <div class="actions" hidden>
     <button class="use" type="button">바로 쓰기</button>
     <button class="skip" type="button">닫기</button>
+  </div>
   </div>
 </div>
 
