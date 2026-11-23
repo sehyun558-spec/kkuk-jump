@@ -10,8 +10,6 @@
   --glass:rgba(255,255,255,.6);       /* 창 바탕 (반투명 흰 유리) */
   --scrim:rgba(255,255,255,.22);      /* 창 뒤 살짝 가리는 막 */
   --useBg:#4A4866; --useText:#fff;    /* "바로 쓰기" 버튼 */
-  --dot:#FF8A80;                      /* 새 스킨 알림 점 */
-  --select:#4A4866;                   /* 지금 쓰는 스킨 테두리 */
   --font:"Jua",-apple-system,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;
 }
 
@@ -39,7 +37,7 @@ canvas{ display:block; }
 /* 가장자리 막: 게임 화면 위에 고정, 누르는 건 통과 */
 #vignette{ position:fixed; inset:0; z-index:1; pointer-events:none; }
 
-/* ---------- 오른쪽 위 버튼 (스킨·소리·진동): 반투명 흰 알약, 테두리 없음 ---------- */
+/* ---------- 오른쪽 위 버튼 (소리·진동): 반투명 흰 알약, 테두리 없음 ---------- */
 #ui{
   position:fixed; z-index:2;
   top:calc(env(safe-area-inset-top, 0px) + 10px);
@@ -57,72 +55,7 @@ canvas{ display:block; }
 }
 #ui button.off{ opacity:.55; }          /* 꺼진 버튼은 흐리게 */
 
-/* "스킨" 버튼의 작은 점: 새 스킨을 얻고 아직 스킨 칸을 안 열어 봤을 때 */
-#btnSkin{ position:relative; }
-#btnSkin.dot::after{
-  content:""; position:absolute; top:-2px; right:-2px;
-  width:9px; height:9px; border-radius:50%;
-  background:var(--dot); box-shadow:0 0 6px var(--dot);
-}
-
-/* ---------- 스킨 창: 반투명 흰 유리 창 ---------- */
-#skinModal{
-  position:fixed; inset:0; z-index:4;
-  display:flex; align-items:center; justify-content:center;
-  background:var(--scrim);              /* 뒤쪽 화면을 살짝 가림 */
-  touch-action:none;
-}
-#skinModal .sheet{
-  position:relative;
-  background:var(--glass); color:var(--text);
-  -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
-  border-radius:22px;
-  box-shadow:0 10px 30px rgba(60,40,100,.12);
-  padding:18px 22px 16px;
-  max-width:min(300px, calc(100vw - 48px));
-}
-#skinModal .title{
-  font:700 15px/1 var(--font); text-align:center;
-  margin:2px 0 16px;
-}
-#skinModal .close{           /* 오른쪽 위 X */
-  position:absolute; top:7px; right:7px;
-  width:32px; height:32px; padding:0;
-  background:transparent; border:0; cursor:pointer;
-  font:600 14px/1 var(--font); color:var(--soft);
-  touch-action:none;
-}
-/* 스킨 네모들: 가로로 나란히, 많아지면 다음 줄로 */
-#skins{
-  display:flex; flex-wrap:wrap; justify-content:center;
-  gap:12px 14px;
-}
-#skins button{
-  display:flex; flex-direction:column; align-items:center; gap:5px;
-  background:transparent; border:0; padding:0; margin:0; cursor:pointer;
-  touch-action:none; -webkit-user-select:none; user-select:none;
-  font:600 11px/1 var(--font); color:var(--soft);
-}
-#skins .frame{               /* 지금 쓰는 스킨은 흰 테두리 */
-  width:48px; height:48px; box-sizing:border-box;
-  border:2px solid transparent; border-radius:14px;
-  display:flex; align-items:center; justify-content:center;
-}
-#skins button.on .frame{ border-color:var(--select); }
-#skins .chip{                /* 스킨 미리보기 네모 */
-  position:relative; width:30px; height:30px; border-radius:7px;
-}
-#skins .chip b{              /* 은색·골드 스킨의 왼쪽 위 흰 빛줄기 */
-  position:absolute; left:14%; top:30%; width:42%; height:2px; border-radius:1px;
-  transform:rotate(-45deg); transform-origin:left center;
-  background:linear-gradient(90deg, rgba(255,255,255,0), #fff 50%, rgba(255,255,255,0));
-  opacity:.85;
-}
-#skins button.locked{ cursor:default; }
-#skins button.locked .chip{ opacity:.3; }   /* 잠긴 스킨은 흐리게 */
-#skins .cond{ height:11px; }                /* 조건 글자 칸 ("10점") */
-
-/* ---------- 새 스킨 공개 화면: 살짝 가린 화면 위 반투명 흰 유리 창 ---------- */
+/* ---------- (꺼 둔 기능) 새 것 공개 화면: 살짝 가린 화면 위 반투명 흰 유리 창 ---------- */
 #reveal{
   position:fixed; inset:0; z-index:4;
   background:var(--scrim);
