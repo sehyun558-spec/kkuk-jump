@@ -14,12 +14,12 @@ const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 const SYS_FONT = '-apple-system,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif';
 const UI = TH.ui;
 // ---------- 글꼴 ----------
-// 영어·숫자 = UI.fontEn (Quicksand), 한글 = UI.fontKo (고운돋움). 못 받아 오면 폰 기본 글꼴로 보임
+// 영어·숫자 = UI.fontEn (Quicksand), 한글 = UI.fontKo (Pretendard). 못 받아 오면 폰 기본 글꼴로 보임
 const FONT_EN = UI.fontEn ? '"' + UI.fontEn + '",' : '';
 const FONT_KO = UI.fontKo ? '"' + UI.fontKo + '",' : '';
 if (document.fonts && document.fonts.load){ // 화면에 쓰기 전에 미리 받아 둠 (필요한 굵기만)
   if (UI.fontEn) [UI.weight, UI.weightBig].forEach(w => document.fonts.load(w + ' 40px "' + UI.fontEn + '"', 'BEST 0123456789').catch(() => {}));
-  if (UI.fontKo) document.fonts.load('400 40px "' + UI.fontKo + '"', '꾹점프').catch(() => {});
+  if (UI.fontKo) [UI.koWeight, UI.koWeightStrong].forEach(w => document.fonts.load(w + ' 40px "' + UI.fontKo + '"', '꾹점프탭해서다시하기').catch(() => {}));
 }
 const T = SET.texts;                                   // 화면에 나오는 말 (settings.js의 texts)
 const fmt = (tpl, n) => String(tpl).replace('{n}', n); // {n} 자리에 숫자 넣기
@@ -538,7 +538,7 @@ function text(t, x, y, size, col, weight = UI.weight, alpha = 1, shadow = false,
   ctx.globalAlpha = alpha; ctx.fillStyle = col;
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   const parts = splitRuns(t).map(r => {
-    const font = r.ko ? '400 ' + (size * UI.koScale).toFixed(1) + 'px ' + FONT_KO + SYS_FONT   // 고운돋움은 한 굵기뿐
+    const font = r.ko ? (weight >= 700 ? UI.koWeightStrong : UI.koWeight) + ' ' + (size * UI.koScale).toFixed(1) + 'px ' + FONT_KO + SYS_FONT // 한글: 보통 500, 강조 600
                       : weight + ' ' + size + 'px ' + FONT_EN + SYS_FONT;
     ctx.font = font;
     const sp = r.ko ? 0 : (track !== null ? track : (/[A-Z]/.test(r.s) ? UI.track : 0)) * size;
@@ -731,11 +731,13 @@ function draw(){
   }
   ctx.globalAlpha = 1;
   // 떠오르는 글자: 흰색에 옅은 그림자 (어느 하늘에서도 잘 읽히게)
-  for (const p of pops){
+  const drawPop = p => {
     const size = p.faint ? S * 0.045 : p.big ? S * 0.065 : S * 0.05;
     text(p.text, toX(p.x), toY(p.y), size, '#fff', p.big ? UI.weightBig : UI.weight, Math.min(1, p.life * 1.5) * (p.faint ? 0.55 : 1), true);
-  }
+  };
+  for (const p of pops) if (!HANGUL.test(p.text)) drawPop(p); // 영어 글자는 화면과 함께 흔들림
   ctx.restore();
+  for (const p of pops) if (HANGUL.test(p.text)) drawPop(p);  // 한국어 글자("아슬아슬!" 등)는 흔들리지 않게
 
   // 게임 중 점수: 흰색 큰 숫자(Quicksand 굵게) + 옅은 그림자, 아래 BEST·COMBO
   const Z = UI.size;
@@ -754,7 +756,7 @@ function draw(){
   if (state === 'ready'){
     const bob = Math.sin(now() / (UI.floatTime * 1000) * Math.PI * 2) * UI.floatTitle;
     const ts = Math.min(S * 0.17, Z.title), ty = H * 0.2 + bob;
-    text(T.title, W / 2, ty, ts, '#fff', 400, 1, true);
+    text(T.title, W / 2, ty, ts, '#fff', UI.weightBig, 1, true); // 한글 강조 굵기
     text(T.titleEn, W / 2, ty + ts * 0.72, Z.titleEn, '#fff', UI.weight, 0.7, true, UI.titleEnTrack);
     const gy = H * 0.2 + ts * 0.72 + 44;
     text(T.guide1, W / 2, gy, Z.guide, '#fff', 400, 0.9, true);
@@ -774,9 +776,7 @@ function draw(){
       const need = needText();
       text(fmt(T.overBest, best) + (need ? '  ·  ' + need : ''), W / 2, cy + 78, Z.label, '#fff', UI.weight, 0.85 * t, true);
     }
-    // 숨 쉬듯 천천히 밝아졌다 흐려짐
-    const breath = 0.5 - 0.5 * Math.cos(now() / (UI.breathTime * 1000) * Math.PI * 2);
-    text(T.retry, W / 2, H * 0.72, Z.retry, '#fff', 400, t * (0.35 + 0.6 * breath), true);
+    text(T.retry, W / 2, H * 0.72, Z.retry, '#fff', 400, t * 0.9, true); // 한국어: 깜빡임 없이 차분하게
   }
 }
 

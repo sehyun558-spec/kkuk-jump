@@ -10,7 +10,7 @@
   --glass:rgba(255,255,255,.6);       /* 창 바탕 (반투명 흰 유리) */
   --scrim:rgba(255,255,255,.22);      /* 창 뒤 살짝 가리는 막 */
   --useBg:#4A4866; --useText:#fff;    /* "바로 쓰기" 버튼 */
-  --font:"Quicksand","Gowun Dodum",-apple-system,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;
+  --font:"Quicksand","Pretendard",-apple-system,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;
 }
 
 /* 화면 전체: 스크롤·확대·글자 선택·길게 누르기 메뉴·탭할 때 회색 번쩍임 막기 */
@@ -105,9 +105,7 @@ canvas{ display:block; }
   border-radius:50%; pointer-events:none;
 }
 #reveal .name{ margin-top:30px; font-weight:700; font-size:18px; min-height:20px; }
-#reveal .hint{ margin-top:10px; font-weight:600; font-size:14px; color:var(--soft);
-  animation:kkukBreath 2.4s ease-in-out infinite; }
-@keyframes kkukBreath{ 50%{ opacity:.3; } }   /* 숨 쉬듯 천천히 깜빡 */
+#reveal .hint{ margin-top:10px; font-weight:500; font-size:14px; color:var(--soft); } /* 한국어: 깜빡임 없이 */
 #reveal .actions{ margin-top:24px; display:flex; gap:10px; }
 #reveal .actions[hidden]{ display:none; }
 #reveal .actions button{
