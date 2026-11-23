@@ -772,7 +772,7 @@ function draw(){
   const dip = state === 'charge' ? (charge / J.maxPower) * F.padDip * S : 0;
   const falling = state === 'fall' || state === 'over';
   if (falling){ drawPlayer(dip); drawPillars(dip); } else { drawPillars(dip); drawPlayer(dip); }
-  if (TH.sea) drawNightFog(); // 밤바다: 기둥 아래쪽과 떨어지는 네모를 밤안개 속으로
+  if (TH.sea) drawNightFront(); // 밤바다: 앞쪽 바다 — 기둥 아래 절반과 떨어지는 네모가 물에 잠김
 
   for (const r of rings){
     ctx.globalAlpha = Math.max(r.life, 0) * 0.85; ctx.strokeStyle = EF.ringColor; ctx.lineWidth = 1.5; // 착지 고리
@@ -966,7 +966,7 @@ function makeNightSeeds(){
 }
 
 // ---------- 움직이지 않는 바탕: 그림 한 장으로 미리 그려 두고 매 순간 그대로 붙임 ----------
-let nightLayer = null, nightPath = null, nightKey = '', nightAt = -1e9, nightSize = '';
+let nightLayer = null, nightFront = null, nightPath = null, nightKey = '', nightAt = -1e9, nightSize = '';
 let moonPos = {x: 0, y: 0, r: 0};
 function nightBackground(){
   const size = W + 'x' + H + 'x' + TH.name;
@@ -1027,6 +1027,20 @@ function nightBackground(){
   }
   // 6) 달빛 길 그림: 수평선에서 아래로 이어진 부드러운 빛 띠 하나 (화면 크기가 바뀔 때만 새로 그림)
   if (!nightPath || nightPath.key !== size) makeNightPath(size, hy, fogY);
+  // 7) 앞쪽 바다 그림: 뒤 바다와 똑같은 색을 물 높이부터 아래로 잘라 둠.
+  //    물에 닿는 곳은 반쯤 비치고(기둥이 물속에 흐릿하게) 조금 더 내려가면 완전히 덮음(기둥이 사라짐)
+  const wy = seaLevelY(), fh = Math.max(1, H - wy);
+  if (!nightFront) nightFront = document.createElement('canvas');
+  nightFront.width = Math.round(W * dpr); nightFront.height = Math.max(1, Math.round(fh * dpr));
+  const f = nightFront.getContext('2d');
+  f.setTransform(1, 0, 0, 1, 0, 0); f.globalCompositeOperation = 'source-over';
+  f.clearRect(0, 0, nightFront.width, nightFront.height);
+  f.drawImage(nightLayer, 0, Math.round(wy * dpr), nightLayer.width, nightFront.height, 0, 0, nightFront.width, nightFront.height);
+  f.globalCompositeOperation = 'destination-in';
+  const fg = f.createLinearGradient(0, 0, 0, Math.max(2, SE.sink * S * dpr));
+  fg.addColorStop(0, 'rgba(0,0,0,' + SE.surface + ')'); fg.addColorStop(1, 'rgba(0,0,0,1)');
+  f.fillStyle = fg; f.fillRect(0, 0, nightFront.width, nightFront.height);
+  f.globalCompositeOperation = 'source-over';
   return nightLayer;
 }
 
@@ -1070,7 +1084,7 @@ function drawNightBack(){
 }
 
 // ---------- 기둥 하나 (밤바다): 어두운 남색, 달 쪽 옆면만 아주 살짝 밝게, 윗면 가장자리에 얇은 달빛 띠 ----------
-// 아래쪽은 화면 끝까지 내려가고, 위에 덮는 밤안개(drawNightFog)가 부드럽게 감춤 → 끝선이 안 보임
+// 아래쪽은 화면 끝까지 내려가고, 앞쪽 바다(drawNightFront)가 절반쯤부터 덮어서 물에 잠긴 것처럼 보임 → 끝선이 안 보임
 function drawNightPillar(sx, w, top, hue, S0, L0){
   const g = ctx.createLinearGradient(sx, 0, sx + w, 0);
   g.addColorStop(0, hsl(hue, S0, L0));
@@ -1081,13 +1095,20 @@ function drawNightPillar(sx, w, top, hue, S0, L0){
   ctx.fillRect(sx, top, w, Math.max(1, S * PL.topBand));
   ctx.globalAlpha = 1;
 }
-// 밤안개: 기둥 아래쪽(과 떨어지는 네모)을 짙은 밤 색 속으로 부드럽게 감춤. 화면 전체에 한 번만 덮음
-function drawNightFog(){
-  const ft = GY + (H - GY) * PL.fogStart, fb = GY + (H - GY) * PL.fogEnd, fc = hexRgb(TH.sea.fog);
-  const g = ctx.createLinearGradient(0, ft, 0, fb);
-  g.addColorStop(0, rgba(fc, 0)); g.addColorStop(0.5, rgba(fc, 0.6)); g.addColorStop(1, rgba(fc, 1));
-  ctx.fillStyle = g; ctx.fillRect(-30, ft, W + 60, fb - ft);
-  ctx.fillStyle = rgba(fc, 1); ctx.fillRect(-30, fb - 1, W + 60, H - fb + 40);
+// 앞쪽 바다: 미리 잘라 둔 바다 그림을 물 높이에 붙이고, 그 위에 달빛 길(물 아래 부분)을 다시 그림
+const seaLevelY = () => GY + (H - GY) * TH.sea.level; // 기둥이 물에 잠기기 시작하는 높이 (화면 픽셀)
+function drawNightFront(){
+  if (!nightFront) return;
+  const wy = seaLevelY(), hy = horizonY(), PA = TH.path, t = now() / 1000, dpr = Math.min(window.devicePixelRatio || 1, 2);
+  ctx.drawImage(nightFront, -30, wy, W + 60, H - wy + 30);
+  const cut = wy - hy;
+  if (nightPath && cut > 0 && cut < nightPath.h){ // 달빛 길도 앞쪽 물 위에 이어서 (뒤쪽과 같은 흔들림)
+    const sw = Math.sin(t / PA.swayTime * Math.PI * 2) * PA.sway;
+    ctx.globalAlpha = Math.min(1, PA.alpha * (0.85 + 0.15 * Math.sin(t / PA.swayTime * Math.PI * 2 * 1.7)));
+    ctx.drawImage(nightPath, 0, cut * dpr, nightPath.width, nightPath.height - cut * dpr,
+                  moonPos.x - nightPath.w / 2 + sw, wy, nightPath.w, nightPath.h - cut);
+    ctx.globalAlpha = 1;
+  }
 }
 
 // ---------- 빛 먼지 ----------
