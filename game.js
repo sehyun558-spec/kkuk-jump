@@ -231,7 +231,7 @@ function fillAhead(){
 function reset(){
   score = TEST; combo = 0; cur = 0; charge = 0; // 보통은 0점에서 시작 (테스트 모드면 그 점수에서)
   newBest = false; passedBest = false; startBest = best;
-  parts = []; pops = []; rings = []; trail = []; cubeFlash = 0;
+  parts = []; pops = []; rings = []; trail = []; cubeFlash = 0; seaRipples = [];
   gotThisGame = []; flash = null; slowT = Infinity;
   resetStardustFx();
   wideIn = randInt(R.everyMin, R.everyMax);
@@ -409,6 +409,7 @@ function land(){
     }
     addScore(gain);
     if (gain > 1) pop('+' + gain, player.x, -F.playerSize * 2.2, false); // 점수 표시는 PERFECT 때만
+    if (TH.sea) addSeaRipple(n.x + n.w / 2, gain > 1 ? 'perfect' : 'normal'); // 밤바다: 그 기둥 아래 수면에 물결
     cur = j;
     fillAhead();
     while (cur > 3){ pillars.shift(); cur--; } // 지나간 기둥 정리
@@ -546,6 +547,10 @@ function update(dt){
     player.y += player.vy * dt;
     player.x += player.dir * dt * 0.15;
     player.rot += player.dir * dt * 5;
+    if (TH.sea && !player.splashed){ // 밤바다: 네모가 수면에 닿는 순간 물결
+      const cyp = GY + player.y * S - F.playerSize * S * player.sq / 2;
+      if (cyp > seaY()){ player.splashed = true; addSeaRipple(player.x, 'splash'); }
+    }
     if (now() - fallAt > SET.time.fall * 1000) gameOver();
   }
 
@@ -557,6 +562,8 @@ function update(dt){
   for (const p of pops){ p.y += (p.faint ? 0.1 : -0.18) * dt; p.life -= dt * 1.1; } // 보통은 위로, 흐린 글자는 아래로
   pops = pops.filter(p => p.life > 0);
   for (const r of rings){ r.r += 0.5 * dt; r.life -= dt * 2.2; }
+  for (const r of seaRipples) r.t += dt;
+  if (TH.sea) seaRipples = seaRipples.filter(r => r.t < TH.sea.rippleTime); else seaRipples = [];
   rings = rings.filter(r => r.life > 0);
 }
 
@@ -655,6 +662,13 @@ function drawPillars(dip){
     const h = bh + Math.sin(p.id * PL.hueStep) * PL.hueRange; // 기둥마다 색이 조금씩 흘러감
     const top = GY + d;
     // 몸통: 위는 기둥 색 → 아래로 살짝 어두워지면서 안개 속으로 투명해짐
+    if (TH.sea){ // 밤바다: 안개 대신 수면에서 끝남 (아래로 갈수록 살짝 어두워짐)
+      const sy = seaY();
+      const g = ctx.createLinearGradient(0, top, 0, sy);
+      g.addColorStop(0, hsl(h, baseS, baseL)); g.addColorStop(1, hsl(h, baseS, baseL - PL.shade));
+      ctx.fillStyle = g;
+      ctx.fillRect(sx, top, w, sy - top + 1);
+    } else {
     const g = ctx.createLinearGradient(0, top, 0, fogBot);
     const fogK = Math.max(0, Math.min(1, (fogTop - top) / Math.max(1, fogBot - top)));
     g.addColorStop(0, hsl(h, baseS, baseL));
@@ -662,6 +676,7 @@ function drawPillars(dip){
     g.addColorStop(1, hsl(h, baseS, baseL - PL.shade, 0));
     ctx.fillStyle = g;
     ctx.fillRect(sx, top, w, fogBot - top);
+    }
     // 윗면: 얇고 밝은 띠
     ctx.fillStyle = hsl(h, baseS * 0.8, baseL + PL.topLight);
     ctx.fillRect(sx, top, w, Math.max(2, S * PL.topBand));
@@ -713,7 +728,11 @@ function drawPlayer(dip){
   const sy = GY + (onGround ? dip : 0) + player.y * S;
   const falling = state === 'fall' || state === 'over';
   // 떨어질 때: 아래로 내려갈수록 투명해져 안개 속으로 빠져듦
-  const alpha = falling ? Math.max(0, 1 - Math.max(0, player.y) / CU.fallFade) : 1;
+  let alpha = falling ? Math.max(0, 1 - Math.max(0, player.y) / CU.fallFade) : 1;
+  if (falling && TH.sea){ // 밤바다: 수면 아래로 들어갈수록 사라짐
+    const cyp = GY + player.y * S - F.playerSize * S * player.sq / 2;
+    alpha = Math.min(alpha, Math.max(0, 1 - (cyp - seaY()) / (TH.sea.sinkFade * S)));
+  }
   if (alpha <= 0) return;
   const s = F.playerSize * S, sx = toX(player.x), cy = sy - s * player.sq / 2;
   // 바닥 그림자: 기둥 윗면에 부드럽게. 높이 뜰수록 작고 흐려짐 (기둥 위에 있을 때만)
@@ -761,6 +780,7 @@ function sprite(kind, color){
 }
 function draw(){
   ctx.fillStyle = skyGrad || bgCss; ctx.fillRect(0, 0, W, H); // 하늘 그라데이션
+  drawMoon(); // 달 (밤바다만)
   drawDust(); // 빛 먼지 (기둥 뒤에서 떠다님)
   ctx.save();
   if (shake > 0.3) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
@@ -768,6 +788,7 @@ function draw(){
   const dip = state === 'charge' ? (charge / J.maxPower) * F.padDip * S : 0;
   const falling = state === 'fall' || state === 'over';
   if (falling){ drawPlayer(dip); drawPillars(dip); } else { drawPillars(dip); drawPlayer(dip); }
+  drawSea(); // 밤바다: 비친 기둥 + 바닷물 + 빛줄기 + 물결 (수면 아래로 빠진 네모도 가려짐)
 
   for (const r of rings){
     ctx.globalAlpha = Math.max(r.life, 0) * 0.85; ctx.strokeStyle = EF.ringColor; ctx.lineWidth = 1.5; // 착지 고리
@@ -934,6 +955,70 @@ function drawStardustHud(){
   }
 }
 
+// ---------- 달 (밤바다만): 화면 위쪽에 크고 희미한 달, 아주 천천히 좌우로 ----------
+function drawMoon(){
+  const M = TH.moon; if (!M) return;
+  const x = W * M.x + Math.sin(now() / 1000 / M.driftTime * Math.PI * 2) * M.drift, y = H * M.y;
+  const r = M.size * S, gs = r * 2 * M.glowSize;
+  ctx.globalAlpha = M.glowAlpha;
+  ctx.drawImage(sprite('glow', M.color), x - gs / 2, y - gs / 2, gs, gs);   // 달빛 번짐
+  const c = hexRgb(M.color).join(','), g = ctx.createRadialGradient(x, y, 0, x, y, r); // 달: 가운데 밝고 가장자리는 부드럽게 번짐
+  g.addColorStop(0, 'rgba(' + c + ',1)'); g.addColorStop(0.75, 'rgba(' + c + ',0.85)'); g.addColorStop(1, 'rgba(' + c + ',0)');
+  ctx.globalAlpha = M.alpha; ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+// ---------- 바다 (밤바다만): 수면, 비친 기둥, 얇은 빛줄기, 물결 ----------
+// 가볍게: 비친 기둥은 가로 띠 몇 개를 조금씩 엇갈려 그려 물결처럼 흔들리게 (그림 복사 없음)
+let seaRipples = [];
+const seaY = () => GY + (H - GY) * TH.sea.level;   // 수면 높이 (화면 픽셀)
+let shimmerSeeds = null; // 빛줄기 자리 (바다가 있는 테마에서 처음 그릴 때 한 번 정함)
+function addSeaRipple(x, kind){ seaRipples.push({x, t: 0, kind}); }
+function drawSea(){
+  const SE = TH.sea; if (!SE) return;
+  const sy = seaY(), t = now() / 1000, deep = H - sy;
+  if (!shimmerSeeds) shimmerSeeds = Array.from({length: 24}, () => ({fx: Math.random(), fy: Math.random(), w: 18 + Math.random() * 46, ph: Math.random() * 6.28}));
+  // 1) 수면 아래로 비친 기둥: 흐릿하게, 물결처럼 살짝 흔들림
+  const bands = 6, rl = (sy - GY) * SE.reflect;
+  pillars.forEach(p => {
+    const sx = toX(p.x), w = p.w * S;
+    if (sx > W + 50 || sx + w < -50) return;
+    const col = pillarColor(p);
+    for (let k = 0; k < bands; k++){
+      const off = Math.sin(t * SE.waveSpeed + k * 0.9 + (p.id || 0)) * SE.waveAmp * (k + 1) / bands;
+      ctx.globalAlpha = SE.reflectAlpha * (1 - k / bands);
+      ctx.fillStyle = col;
+      ctx.fillRect(sx + off, sy + k * rl / bands, w, rl / bands + 1);
+    }
+  });
+  ctx.globalAlpha = 1;
+  // 2) 바닷물: 수면 아래를 살짝 어둡게 덮음 (아래로 갈수록 진하게)
+  const c = hexRgb(SE.color).join(','), g = ctx.createLinearGradient(0, sy, 0, H);
+  g.addColorStop(0, 'rgba(' + c + ',' + SE.topAlpha + ')'); g.addColorStop(1, 'rgba(' + c + ',' + SE.bottomAlpha + ')');
+  ctx.fillStyle = g; ctx.fillRect(0, sy, W, deep);
+  // 3) 수면 선 + 얇은 빛줄기 몇 개 (천천히 반짝임)
+  ctx.fillStyle = SE.lineColor;
+  ctx.globalAlpha = SE.lineAlpha; ctx.fillRect(0, sy, W, 1);
+  for (let i = 0; i < Math.min(SE.shimmers, shimmerSeeds.length); i++){
+    const s = shimmerSeeds[i];
+    const a = SE.shimmerAlpha * (0.5 + 0.5 * Math.sin(t * SE.shimmerSpeed + s.ph));
+    const x = s.fx * W + Math.sin(t * 0.15 + s.ph) * 12, y = sy + 6 + s.fy * (deep - 14);
+    ctx.globalAlpha = a * (1 - s.fy * 0.5);
+    ctx.fillStyle = SE.shimmerColor; ctx.fillRect(x - s.w / 2, y, s.w, 1.5);
+  }
+  // 4) 물결 고리: 착지하면 그 기둥 아래 수면에서 퍼짐 (PERFECT는 더 크고 밝게, 떨어지면 빠진 자리에서)
+  for (const r of seaRipples){
+    const k = r.t / SE.rippleTime, e = 1 - Math.pow(1 - k, 3);
+    const size = r.kind === 'perfect' ? SE.perfectSize : r.kind === 'splash' ? SE.splashSize : SE.rippleSize;
+    const a = (r.kind === 'normal' ? SE.rippleAlpha : SE.perfectAlpha) * (1 - k);
+    const rad = (0.04 + (size - 0.04) * e) * S;
+    ctx.globalAlpha = a; ctx.strokeStyle = SE.rippleColor; ctx.lineWidth = r.kind === 'normal' ? 1.2 : 1.6;
+    ctx.beginPath(); ctx.ellipse(toX(r.x), sy, rad, rad * 0.22, 0, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
 // ---------- 빛 먼지 ----------
 // 동그랗고 흐린 점들이 아주 천천히 위로 떠오름. 다크 모드에서는 별처럼 반짝임
 let dust = [];
@@ -943,26 +1028,45 @@ function makeDust(){
 }
 function newMote(y){
   const r = Math.random();
-  return {
+  if (DU.mode === 'twinkle') y = Math.random() * H; // 제자리 깜빡임: 화면 아무 데나 새로 나타남
+  const m = {
     x: Math.random() * W, y,
     size: DU.sizeMin + (DU.sizeMax - DU.sizeMin) * r * r,     // 작은 점이 더 많게
     a: DU.alphaMin + (DU.alphaMax - DU.alphaMin) * Math.random(),
     sp: DU.speed * (0.5 + Math.random()),                      // 점마다 속도가 조금씩 다름
     ph: Math.random() * Math.PI * 2,                           // 좌우로 흔들리는 박자
   };
+  if (DU.mode === 'twinkle') m.dir = Math.random() * Math.PI * 2; // 아주 천천히 떠도는 방향
+  return m;
 }
 function updateDust(dt){
   if (dust.length !== DU.count) makeDust();
   for (const m of dust){
     if (m.held) continue; // 별가루가 되려고 모여드는 중인 먼지는 따로 움직임
+    if (DU.mode === 'twinkle'){ // 물빛 반짝임: 제자리 근처를 아주 천천히 떠돎
+      m.x += Math.cos(m.dir) * m.sp * dt; m.y += Math.sin(m.dir) * m.sp * dt; m.dir += dt * 0.1;
+      if (m.x < -10 || m.x > W + 10 || m.y < -10 || m.y > H + 10) Object.assign(m, newMote(0));
+      continue;
+    }
     m.y -= m.sp * dt; m.ph += dt * 0.6;
     if (m.y < -10){ Object.assign(m, newMote(H + 10)); }
   }
 }
 function drawDust(){
+  const t = now() / 1000;
+  if (DU.mode === 'twinkle'){ // 물빛 반짝임: 천천히 깜빡임
+    const img = sprite('glow', DU.color || '#FFFFFF');
+    for (const m of dust){
+      const tw = m.held ? 1.6 : 0.15 + 0.85 * (0.5 + 0.5 * Math.sin(t * DU.twinkle + m.ph * 3));
+      const sz = m.size * 2.6;
+      ctx.globalAlpha = Math.min(1, m.a * tw);
+      ctx.drawImage(img, m.x - sz / 2, m.y - sz / 2, sz, sz);
+    }
+    ctx.globalAlpha = 1;
+    return;
+  }
   const star = darkMode;
   const img = sprite('glow', star ? '235,235,255' : '255,255,255');
-  const t = now() / 1000;
   for (const m of dust){
     const x = m.held ? m.x : m.x + Math.sin(m.ph) * DU.sway;
     // 다크 모드: 별처럼 천천히 반짝임
@@ -1046,6 +1150,9 @@ function drawPreview(cnv, t){
     c.fillStyle = pg; c.fillRect(x, gy, pw, h - gy);
     c.fillStyle = hsl(hue, Sa * 0.8, L + p.topLight); c.fillRect(x, gy, pw, 2);
   });
+  if (t.moon){ c.globalAlpha = Math.min(1, t.moon.alpha * 2); c.fillStyle = t.moon.color; c.beginPath(); c.arc(w * 0.76, h * 0.2, 7, 0, Math.PI * 2); c.fill(); c.globalAlpha = 1; }
+  if (t.sea){ const sy = gy + (h - gy) * t.sea.level; c.fillStyle = 'rgba(' + hexRgb(t.sea.color).join(',') + ',' + t.sea.bottomAlpha + ')'; c.fillRect(0, sy, w, h - sy);
+    c.globalAlpha = 0.5; c.fillStyle = t.sea.lineColor; c.fillRect(0, sy, w, 1); c.globalAlpha = 1; }
   const cc = darkMode ? t.cube.dark : t.cube.light, s = 15, cx = 31 - s / 2, cy = gy - s;
   const cg = c.createLinearGradient(0, cy, 0, cy + s); cg.addColorStop(0, cc.top); cg.addColorStop(1, cc.bottom);
   c.fillStyle = cg;
