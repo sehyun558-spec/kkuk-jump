@@ -33,6 +33,7 @@ function pickColors(){
   darkMode = dark;
   C = dark ? SET.colors.dark : SET.colors.light;
   if (skinsReady) paintSkins(); // 다크 모드가 바뀌면 스킨 버튼 색도 바꿈
+  paintVignette();     // 가장자리 막 색도
   // 버튼·안내 글자 색도 같은 색으로 (style.css의 --bg 등을 덮어씀)
   const st = document.documentElement.style;
   st.setProperty('--bg', C.bg);
@@ -109,7 +110,7 @@ function resize(){
   if (camFocus !== undefined) camX = camGoal();    // 화면이 바뀌면 카메라 바로 맞춤
   if (isSideways()) cancelCharge();
 }
-addEventListener('resize', resize);
+addEventListener('resize', () => { resize(); makeDust(); }); // 화면 크기가 바뀌면 빛 먼지도 다시 뿌림
 
 // ---------- 저장된 기록 ----------
 // 이상한 값(숫자가 아닌 값)이 저장돼 있으면 0부터 다시 (B12)
@@ -765,6 +766,7 @@ function sprite(kind, color){
 }
 function draw(){
   ctx.fillStyle = skyGrad || bgCss; ctx.fillRect(0, 0, W, H); // 하늘 그라데이션
+  drawDust(); // 빛 먼지 (기둥 뒤에서 떠다님)
   ctx.save();
   if (shake > 0.3) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
 
@@ -837,6 +839,58 @@ function draw(){
   }
 }
 
+// ---------- 빛 먼지 ----------
+// 동그랗고 흐린 점들이 아주 천천히 위로 떠오름. 다크 모드에서는 별처럼 반짝임
+const DU = SET.dust;
+let dust = [];
+function makeDust(){
+  dust = [];
+  for (let i = 0; i < DU.count; i++) dust.push(newMote(Math.random() * H));
+}
+function newMote(y){
+  const r = Math.random();
+  return {
+    x: Math.random() * W, y,
+    size: DU.sizeMin + (DU.sizeMax - DU.sizeMin) * r * r,     // 작은 점이 더 많게
+    a: DU.alphaMin + (DU.alphaMax - DU.alphaMin) * Math.random(),
+    sp: DU.speed * (0.5 + Math.random()),                      // 점마다 속도가 조금씩 다름
+    ph: Math.random() * Math.PI * 2,                           // 좌우로 흔들리는 박자
+  };
+}
+function updateDust(dt){
+  if (dust.length !== DU.count) makeDust();
+  for (const m of dust){
+    m.y -= m.sp * dt; m.ph += dt * 0.6;
+    if (m.y < -10){ Object.assign(m, newMote(H + 10)); }
+  }
+}
+function drawDust(){
+  const star = darkMode;
+  const img = sprite('glow', star ? '235,235,255' : '255,255,255');
+  const t = now() / 1000;
+  for (const m of dust){
+    const x = m.x + Math.sin(m.ph) * DU.sway;
+    // 다크 모드: 별처럼 천천히 반짝임
+    const tw = star ? 0.55 + 0.45 * Math.sin(t * DU.twinkle + m.ph * 3) : 1;
+    const sz = m.size * (star ? 0.8 : 1) * 2.6;               // 번지는 빛 포함 크기
+    ctx.globalAlpha = m.a * tw;
+    ctx.drawImage(img, x - sz / 2, m.y - sz / 2, sz, sz);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ---------- 가장자리 (꿈꾸는 듯 살짝 뿌옇게) ----------
+// 게임 화면 위에 고정된 얇은 막으로 깔아 둠 → 매 순간 다시 그리지 않아서 폰에서 가벼움
+function paintVignette(){
+  const VG = SET.vignette; // (게임 시작 맨 처음에도 불리므로 여기서 바로 읽음)
+  const el = document.getElementById('vignette');
+  const col = darkMode ? VG.dark : VG.light;
+  if (!el) return;
+  if (!col || VG.size <= 0){ el.style.background = 'none'; return; }
+  const clear = col.replace(/[\d.]+\)$/, '0)');
+  el.style.background = 'radial-gradient(ellipse at center, ' + clear + ' ' + Math.round((1 - VG.size) * 100) + '%, ' + col + ' 100%)';
+}
+
 // 화면 테두리 반짝임: 스킨 색으로 한 번 반짝이고 사라짐
 function drawFlash(dt){
   if (!flash) return;
@@ -866,7 +920,7 @@ function loop(t){
     speed = UF.slowScale + (1 - UF.slowScale) * k * k;
     slowT += dt;
   }
-  update(dt * speed); updateBg(dt); draw();
+  update(dt * speed); updateBg(dt); updateDust(dt); draw();
   drawFlash(dt);
   // "스킨" 버튼은 첫 화면·게임 오버 화면에서만 보임
   const showSkinBtn = state === 'ready' || state === 'over';
