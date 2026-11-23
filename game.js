@@ -596,17 +596,62 @@ function text(t, x, y, size, col, weight = 800, alpha = 1){
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText(t, x, y); ctx.globalAlpha = 1;
 }
+// ---------- 기둥 ----------
+// 색: 지금 하늘 색에서 뽑은 파스텔색 (하늘보다 한 톤 진하게). 기둥마다 색이 조금씩 흘러감
+// 입체감: 테두리 없이 윗면 밝은 띠 + 몸통은 아래로 살짝 어두워짐. 아래쪽은 안개 속으로 사라짐
+const PL = SET.pillarLook;
+let pillarSeq = 0; // 기둥마다 붙는 번호 (색이 흘러가는 순서)
+// 색 바꾸기 도우미: [빨,초,파] ↔ [색상(0~360), 진하기(0~1), 밝기(0~1)]
+function rgbToHsl([r, g, b]){
+  r /= 255; g /= 255; b /= 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2;
+  if (mx === mn) return [0, 0, l];
+  const d = mx - mn, s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+  let h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h * 60, s, l];
+}
+function hsl(h, s, l, a = 1){
+  h = ((h % 360) + 360) % 360;
+  s = Math.max(0, Math.min(1, s)); l = Math.max(0, Math.min(1, l));
+  return 'hsla(' + h.toFixed(1) + ',' + (s * 100).toFixed(1) + '%,' + (l * 100).toFixed(1) + '%,' + a + ')';
+}
 function drawPillars(dip){
+  const mid = [0, 1, 2].map(i => (skyTop[i] + skyBot[i]) / 2);
+  const [bh, bs, bl] = rgbToHsl(mid);
+  // 밝은 화면: 하늘보다 진하게 / 다크 모드: 하늘보다 밝게 (차분한 색)
+  const baseL = darkMode ? bl + PL.darkLift : bl - PL.darker;
+  const baseS = bs + PL.saturate;
+  const fogTop = GY + (H - GY) * PL.fogStart, fogBot = GY + (H - GY) * PL.fogEnd;
   pillars.forEach((p, i) => {
+    if (p.id === undefined) p.id = pillarSeq++;
     const sx = toX(p.x), w = p.w * S;
     if (sx > W + 50 || sx + w < -50) return;
     const d = i === cur ? dip : 0; // 서 있는 발판만 눌림
-    ctx.fillStyle = C.ink;
-    ctx.fillRect(sx, GY + d, w, H - GY + 20);
-    if (i > cur || state === 'ready'){ // 빨간 선
-      const lw = JD.perfectLine * S;
-      ctx.fillStyle = C.accent;
-      ctx.fillRect(sx + w / 2 - lw / 2, GY + d, lw, Math.max(3, S * 0.008));
+    const h = bh + Math.sin(p.id * PL.hueStep) * PL.hueRange; // 기둥마다 색이 조금씩 흘러감
+    const top = GY + d;
+    // 몸통: 위는 기둥 색 → 아래로 살짝 어두워지면서 안개 속으로 투명해짐
+    const g = ctx.createLinearGradient(0, top, 0, fogBot);
+    const fogK = Math.max(0, Math.min(1, (fogTop - top) / Math.max(1, fogBot - top)));
+    g.addColorStop(0, hsl(h, baseS, baseL));
+    g.addColorStop(fogK, hsl(h, baseS, baseL - PL.shade * fogK, 1));
+    g.addColorStop(1, hsl(h, baseS, baseL - PL.shade, 0));
+    ctx.fillStyle = g;
+    ctx.fillRect(sx, top, w, fogBot - top);
+    // 윗면: 얇고 밝은 띠
+    ctx.fillStyle = hsl(h, baseS * 0.8, baseL + PL.topLight);
+    ctx.fillRect(sx, top, w, Math.max(2, S * PL.topBand));
+    // "완벽!" 기준선: 은은하게 빛나는 흰 선 (살짝 번지는 빛 + 가운데 선)
+    if (i > cur || state === 'ready'){
+      const lw = JD.perfectLine * S, cx = sx + w / 2, lh = Math.max(2, S * 0.006);
+      const gw = lw * 1.6, gh = Math.max(6, S * 0.03);
+      const glow = ctx.createRadialGradient(cx, top, 0, cx, top, gw);
+      glow.addColorStop(0, 'rgba(255,255,255,' + PL.lineGlow + ')');
+      glow.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.save(); ctx.translate(cx, top); ctx.scale(1, gh / gw); ctx.translate(-cx, -top);
+      ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(cx, top, gw, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      ctx.fillStyle = 'rgba(255,255,255,0.95)';
+      ctx.fillRect(cx - lw / 2, top, lw, lh);
     }
   });
 }
@@ -702,7 +747,7 @@ function draw(){
   if (state === 'ready'){
     text('꾹 점프', W / 2, H * 0.2, Math.min(S * 0.15, 56), C.ink, 900);
     text('꾹 눌러서 힘을 모으고, 떼면 점프', W / 2, H * 0.2 + 52, 16, C.sub, 600);
-    text('빨간 선 위에 착지하면 완벽!', W / 2, H * 0.2 + 78, 16, C.accent, 700);
+    text('빛나는 선 위에 착지하면 완벽!', W / 2, H * 0.2 + 78, 16, C.accent, 700);
     if (best) text('최고 기록 ' + best, W / 2, H * 0.2 + 112, 14, C.sub, 600);
   }
 
