@@ -4,22 +4,50 @@
 // =====================================================================
 (() => {
 const SET = SETTINGS;
-// ---------- 테마: 화면에 보이는 것 전부 (settings.js의 useTheme으로 고름) ----------
-const TH = SET.themes.find(t => t.name === SET.useTheme) || SET.themes[0];
-const CU = TH.cube, EF = TH.effects; // 네모 "구름 조각" 모양, 효과 색
+// ---------- 테스트 모드인지 (주소 끝 ?test=숫자) — 시험용 테마를 보일지 정하려고 맨 먼저 확인 ----------
+const TEST = (() => {
+  const v = Number(new URLSearchParams(location.search).get('test'));
+  return Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
+})();
+
+// ---------- 테마: 화면에 보이는 것 전부 ----------
+// base: '꿈' 이 있는 테마는 꿈 테마를 바탕으로 적은 것만 바꿈. testOnly 테마는 테스트 모드에서만
+function mergeDeep(a, b){
+  const out = Array.isArray(a) ? a.slice() : Object.assign({}, a);
+  for (const k in b){
+    const v = b[k];
+    out[k] = v && typeof v === 'object' && !Array.isArray(v) && a && typeof a[k] === 'object' && !Array.isArray(a[k]) ? mergeDeep(a[k], v) : v;
+  }
+  return out;
+}
+const THEMES = SET.themes
+  .map(t => t.base ? mergeDeep(SET.themes.find(x => x.name === t.base) || {}, t) : t)
+  .filter(t => !t.testOnly || TEST);
+const findTheme = name => THEMES.find(t => t.name === name);
+// 가진 테마 목록 (저장됨). 가격 0인 테마는 처음부터 가진 것
+let ownedThemes = (() => { try { const a = JSON.parse(Store.get('kkuk_themes') || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } })();
+const ownsTheme = t => !(t.price > 0) || ownedThemes.includes(t.name);
+// 지금 테마에서 꺼내 쓰는 묶음들 (테마를 바꾸면 bindTheme이 다시 채움)
+let TH, CU, EF, UI, SKY, PL, DU, SDC, FONT_EN = '', FONT_KO = '';
 const J = SET.jump, P = SET.pillar, R = SET.rest, WU = SET.warmup, JD = SET.judge, FX = SET.effects, F = SET.feel;
 
 const stage = document.getElementById('stage');
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 const SYS_FONT = '-apple-system,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif';
-const UI = TH.ui;
-// ---------- 글꼴 ----------
-// 영어·숫자 = UI.fontEn (Quicksand), 한글 = UI.fontKo (Pretendard). 못 받아 오면 폰 기본 글꼴로 보임
-const FONT_EN = UI.fontEn ? '"' + UI.fontEn + '",' : '';
-const FONT_KO = UI.fontKo ? '"' + UI.fontKo + '",' : '';
-if (document.fonts && document.fonts.load){ // 화면에 쓰기 전에 미리 받아 둠 (필요한 굵기만)
-  if (UI.fontEn) [UI.weight, UI.weightBig].forEach(w => document.fonts.load(w + ' 40px "' + UI.fontEn + '"', 'BEST 0123456789').catch(() => {}));
-  if (UI.fontKo) [UI.koWeight, UI.koWeightStrong].forEach(w => document.fonts.load(w + ' 40px "' + UI.fontKo + '"', '꾹점프탭해서다시하기').catch(() => {}));
+function bindTheme(t){
+  TH = t; CU = t.cube; EF = t.effects; UI = t.ui; SKY = t.sky; PL = t.pillar; DU = t.dust; SDC = t.stardust;
+  // ---------- 글꼴 ----------
+  // 영어·숫자 = UI.fontEn (Quicksand), 한글 = UI.fontKo (Pretendard). 못 받아 오면 폰 기본 글꼴로 보임
+  FONT_EN = UI.fontEn ? '"' + UI.fontEn + '",' : '';
+  FONT_KO = UI.fontKo ? '"' + UI.fontKo + '",' : '';
+  if (document.fonts && document.fonts.load){ // 화면에 쓰기 전에 미리 받아 둠 (필요한 굵기만)
+    if (UI.fontEn) [UI.weight, UI.weightBig].forEach(w => document.fonts.load(w + ' 40px "' + UI.fontEn + '"', 'BEST 0123456789').catch(() => {}));
+    if (UI.fontKo) [UI.koWeight, UI.koWeightStrong].forEach(w => document.fonts.load(w + ' 40px "' + UI.fontKo + '"', '꾹점프탭해서다시하기테마').catch(() => {}));
+  }
+}
+{ // 처음 테마: 테마 칸에서 골라 저장해 둔 것 → 없거나 못 쓰면 useTheme → 목록 첫 번째
+  const saved = findTheme(Store.get('kkuk_theme'));
+  bindTheme(saved && ownsTheme(saved) ? saved : (findTheme(SET.useTheme) || THEMES[0]));
 }
 const T = SET.texts;                                   // 화면에 나오는 말 (settings.js의 texts)
 const fmt = (tpl, n) => String(tpl).replace('{n}', n); // {n} 자리에 숫자 넣기
@@ -48,7 +76,6 @@ pickColors();
 
 // ---------- 하늘 (배경 그라데이션 테마) ----------
 // 위에서 아래로 두 파스텔 색이 섞인 하늘. 점수가 오르면 다음 테마로 아주 천천히 넘어감
-const SKY = TH.sky;
 let skyTop = null, skyBot = null;    // 지금 하늘의 위·아래 색 [빨,초,파]
 let bgReturn = false;                // 다시 시작해서 첫 테마로 돌아가는 중인지
 let bgCss = '', bgLastCss = '';
@@ -123,10 +150,6 @@ let best  = readNumber('kkuk_best');   // 최고 기록
 // 주소 끝에 ?test=9 처럼 붙이면: 매 판 9점에서 시작하고, 최고 기록도 9점인 것처럼 동작
 //   예) ?test=14 → 15점에서 하늘이 다음 테마로 넘어가는 걸 바로 볼 수 있음
 // 테스트 중에는 기록·플레이 횟수를 저장하지 않아서 진짜 기록은 그대로입니다.
-const TEST = (() => {
-  const v = Number(new URLSearchParams(location.search).get('test'));
-  return Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
-})();
 if (TEST){
   best = TEST;
   const ver = document.getElementById('ver');
@@ -262,6 +285,7 @@ function cancelCharge(){
 // 게임 화면 칸에서만 게임 조작 (버튼은 이 칸 밖이라 눌러도 점프 안 됨, B9)
 stage.addEventListener('pointerdown', e => {
   e.preventDefault();
+  if (themeOpen) return;                                   // 테마 칸이 열려 있으면 점프 안 됨
   if (e.pointerType === 'mouse' && e.button !== 0) return; // 마우스 왼쪽 버튼만
   if (state === 'charge' && activeId !== null) return;    // 누르는 중에 다른 손가락은 무시 (B3)
   activeId = e.pointerId;
@@ -280,6 +304,11 @@ addEventListener('contextmenu', e => e.preventDefault());
 
 // 컴퓨터: 스페이스바로도 조작
 addEventListener('keydown', e => {
+  if (themeOpen){ // 테마 칸이 열려 있으면: Esc로 닫기, 스페이스바는 무시
+    if (e.code === 'Escape') closeThemes();
+    if (e.code === 'Space') e.preventDefault();
+    return;
+  }
   if (revealUp()){ // 공개 화면: 스페이스바·엔터로 공개, 게임 조작은 막음
     if (e.code === 'Space' || e.code === 'Enter'){ e.preventDefault(); if (!e.repeat) openReveal(); }
     return;
@@ -288,7 +317,7 @@ addEventListener('keydown', e => {
   e.preventDefault();
   if (!e.repeat) press();
 });
-addEventListener('keyup', e => { if (e.code === 'Space' && !revealUp()) release(); });
+addEventListener('keyup', e => { if (e.code === 'Space' && !revealUp() && !themeOpen) release(); });
 
 // 앱을 바꾸거나 화면이 꺼지면 힘 모으기 취소, 돌아오면 소리 깨우기
 document.addEventListener('visibilitychange', () => {
@@ -589,7 +618,6 @@ function text(t, x, y, size, col, weight = UI.weight, alpha = 1, shadow = false,
 // ---------- 기둥 ----------
 // 색: 지금 하늘 색에서 뽑은 파스텔색 (하늘보다 한 톤 진하게). 기둥마다 색이 조금씩 흘러감
 // 입체감: 테두리 없이 윗면 밝은 띠 + 몸통은 아래로 살짝 어두워짐. 아래쪽은 안개 속으로 사라짐
-const PL = TH.pillar;
 let pillarSeq = 0; // 기둥마다 붙는 번호 (색이 흘러가는 순서)
 // 색 바꾸기 도우미: [빨,초,파] ↔ [색상(0~360), 진하기(0~1), 밝기(0~1)]
 function rgbToHsl([r, g, b]){
@@ -806,7 +834,6 @@ function draw(){
 
 // ---------- 별가루 얻는 연출 ----------
 // 빛 먼지 몇 개가 네모 쪽으로 모여 작은 별이 되고 → 왼쪽 위로 날아감 → 도착하면 숫자가 1 올라감
-const SDC = TH.stardust;                       // 별가루 빛 색 (테마마다)
 let gameStardust = 0;                          // 이번 판에 얻은 개수
 let shownStardust = stardust;                  // 왼쪽 위에 보이는 숫자 (별이 도착할 때 올라감)
 let starFx = [];                               // 날아가는 별들
@@ -909,7 +936,6 @@ function drawStardustHud(){
 
 // ---------- 빛 먼지 ----------
 // 동그랗고 흐린 점들이 아주 천천히 위로 떠오름. 다크 모드에서는 별처럼 반짝임
-const DU = TH.dust;
 let dust = [];
 function makeDust(){
   dust = [];
@@ -976,6 +1002,104 @@ function drawFlash(dt){
   ctx.restore();
 }
 
+// ---------- 테마 선택 칸 ----------
+// 첫 화면·게임 오버 화면에서만 "테마" 버튼이 보임. 누르면 유리 창에 테마 카드가 나란히.
+// 가진 테마: 누르면 바로 바뀜 / 안 가진 테마: 한 번 누르면 "✦ 100으로 열까요?", 한 번 더 누르면 삼
+const btnTheme = document.getElementById('btnTheme');
+const themeModal = document.getElementById('themeModal');
+const themeList = document.getElementById('themeList');
+const themeStars = document.getElementById('themeStars');
+let themeOpen = false;  // 창이 열려 있으면 게임 조작을 모두 막음
+let askName = null;     // "○으로 열까요?"를 묻는 중인 테마
+let needName = null;    // "○개 더 필요해요"를 보여 주는 테마
+const STAR_SVG = '<svg class="star" viewBox="-10 -10 20 20" aria-hidden="true"><path d="M0-9Q1.6-1.6 9 0Q1.6 1.6 0 9Q-1.6 1.6-9 0Q-1.6-1.6 0-9Z"/></svg>';
+document.getElementById('themeTitle').textContent = T.themeTitle;
+
+function applyTheme(t){ // 테마 바꾸기: 하늘·기둥·네모·글자·빛 먼지까지 바로 적용, 고른 것 저장
+  bindTheme(t);
+  save('kkuk_theme', t.name);
+  pickColors(); makeDust();
+}
+function openThemes(){
+  if (state !== 'ready' && state !== 'over') return;
+  askName = needName = null;
+  renderThemes();
+  themeModal.hidden = false; themeOpen = true;
+}
+function closeThemes(){ themeModal.hidden = true; themeOpen = false; askName = needName = null; }
+
+// 카드 미리보기: 그 테마의 하늘 색, 기둥 두 개, 네모
+function drawPreview(cnv, t){
+  const dpr = Math.min(window.devicePixelRatio || 1, 2), w = 120, h = 84;
+  cnv.width = w * dpr; cnv.height = h * dpr;
+  const c = cnv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const sk = (darkMode ? t.sky.dark : t.sky.light)[0];
+  const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, sk.top); g.addColorStop(1, sk.bottom);
+  c.fillStyle = g; c.fillRect(0, 0, w, h);
+  const mid = [0, 1, 2].map(i => (hexRgb(sk.top)[i] + hexRgb(sk.bottom)[i]) / 2);
+  const [bh, bs, bl] = rgbToHsl(mid), p = t.pillar;
+  const L = darkMode ? bl + p.darkLift : bl - p.darker, Sa = bs + p.saturate, gy = h * 0.62;
+  [[14, 34, 0], [70, 30, 1]].forEach(([x, pw, id]) => {
+    const hue = bh + Math.sin(id * p.hueStep) * p.hueRange;
+    const pg = c.createLinearGradient(0, gy, 0, h);
+    pg.addColorStop(0, hsl(hue, Sa, L)); pg.addColorStop(1, hsl(hue, Sa, L - p.shade, 0));
+    c.fillStyle = pg; c.fillRect(x, gy, pw, h - gy);
+    c.fillStyle = hsl(hue, Sa * 0.8, L + p.topLight); c.fillRect(x, gy, pw, 2);
+  });
+  const cc = darkMode ? t.cube.dark : t.cube.light, s = 15, cx = 31 - s / 2, cy = gy - s;
+  const cg = c.createLinearGradient(0, cy, 0, cy + s); cg.addColorStop(0, cc.top); cg.addColorStop(1, cc.bottom);
+  c.fillStyle = cg;
+  c.beginPath(); c.moveTo(cx + 3, cy); c.arcTo(cx + s, cy, cx + s, cy + s, 3); c.arcTo(cx + s, cy + s, cx, cy + s, 3);
+  c.arcTo(cx, cy + s, cx, cy, 3); c.arcTo(cx, cy, cx + s, cy, 3); c.fill();
+}
+function renderThemes(){
+  themeStars.innerHTML = STAR_SVG + '<b>' + Wallet.get() + '</b>';   // 창 위쪽: 내 별가루
+  themeList.innerHTML = '';
+  for (const t of THEMES){
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'tcard';
+    const using = t === TH, owned = ownsTheme(t);
+    let st;
+    if (using) st = T.themeInUse;
+    else if (owned) st = T.themeUse;
+    else if (needName === t.name) st = STAR_SVG + fmt(T.themeNeed, t.price - Wallet.get());
+    else if (askName === t.name) st = STAR_SVG + fmt(T.themeAsk, t.price);
+    else st = STAR_SVG + t.price;
+    b.classList.toggle('on', using);
+    b.classList.toggle('ask', askName === t.name || needName === t.name);
+    b.innerHTML = '<canvas></canvas><span class="tname"></span><span class="tstate">' + st + '</span>';
+    b.querySelector('.tname').textContent = t.name;
+    drawPreview(b.querySelector('canvas'), t);
+    b.addEventListener('click', () => { b.blur(); pickTheme(t); });
+    themeList.appendChild(b);
+  }
+}
+function pickTheme(t){
+  if (t === TH) return;
+  if (ownsTheme(t)){                        // 가진 테마: 바로 바꿈
+    askName = needName = null; applyTheme(t);
+    Sound.tone(880, 0.06, 'triangle', 0.06);
+  } else if (Wallet.get() < t.price){       // 별가루 모자람: 사지 않고 알려 줌
+    askName = null; needName = t.name;
+    Sound.tone(260, 0.08, 'sine', 0.05);
+  } else if (askName !== t.name){           // 처음 누름: "○으로 열까요?" (실수로 사는 것 방지)
+    askName = t.name; needName = null;
+    Sound.tone(660, 0.05, 'triangle', 0.05);
+  } else {                                  // 한 번 더 누름: 사고 바로 적용
+    if (Wallet.spend(t.price)){
+      ownedThemes.push(t.name); save('kkuk_themes', JSON.stringify(ownedThemes));
+      shownStardust = Wallet.get();
+      askName = needName = null; applyTheme(t);
+      Sound.chime(1); Sound.buzz(12);
+    }
+  }
+  renderThemes();
+}
+btnTheme.addEventListener('click', () => { btnTheme.blur(); openThemes(); });
+themeModal.querySelector('.close').addEventListener('click', closeThemes);
+themeModal.addEventListener('click', e => { if (e.target === themeModal) closeThemes(); }); // 창 바깥을 누르면 닫힘
+// 창은 게임 칸 위에 덮여 있어서, 창이나 바깥 막을 누른 손가락은 게임으로 전달되지 않음 (닫으려고 누른 것도 점프 안 됨)
+
 // ---------- 시작 ----------
 resize();
 reset();
@@ -991,6 +1115,12 @@ function loop(t){
   }
   update(dt * speed); updateBg(dt); updateDust(dt); updateStarFx(dt); draw();
   drawFlash(dt);
+  // "테마" 버튼은 첫 화면·게임 오버 화면에서만 보임
+  const showThemeBtn = state === 'ready' || state === 'over';
+  if (btnTheme.hidden === showThemeBtn){
+    btnTheme.hidden = !showThemeBtn;
+    if (!showThemeBtn) closeThemes();
+  }
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);

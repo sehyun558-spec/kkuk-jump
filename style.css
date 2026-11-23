@@ -61,6 +61,47 @@ canvas{ display:block; }
 #ui button.off .slash{ display:inline; }          /* + 사선 */
 #ui button.off .wave{ opacity:.35; }              /* + 물결·떨림도 흐리게 */
 
+/* ---------- 테마 선택 칸: 반투명 흰 유리 창 + 카드 ---------- */
+#themeModal{
+  position:fixed; inset:0; z-index:4;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--scrim);              /* 뒤쪽 화면을 살짝 가림 */
+  touch-action:none;
+}
+#themeModal .sheet{
+  position:relative; width:min(320px, calc(100vw - 40px));
+  max-height:calc(100vh - 80px); overflow:auto;
+  background:var(--glass); color:var(--text);
+  -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
+  border-radius:24px; box-shadow:0 10px 30px rgba(60,40,100,.12);
+  padding:14px 16px 18px; box-sizing:border-box;
+  font-family:var(--font);
+}
+#themeModal .head{ position:relative; height:34px; margin-bottom:12px; }
+#themeModal .title{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); font-weight:600; font-size:16px; }
+#themeModal .stars{ position:absolute; left:2px; top:50%; transform:translateY(-50%);
+  display:flex; align-items:center; gap:5px; font-weight:700; font-size:14px; }
+#themeModal .close{
+  position:absolute; right:-4px; top:50%; transform:translateY(-50%);
+  width:34px; height:34px; padding:0; border:0; background:transparent; cursor:pointer;
+  font:600 15px/1 var(--font); color:var(--soft); touch-action:none;
+}
+#themeModal svg.star{ width:12px; height:12px; fill:currentColor; flex:none; }
+#themeList{ display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; }   /* 카드 두 개씩, 많으면 아래로 */
+.tcard{
+  display:flex; flex-direction:column; align-items:stretch; gap:6px;
+  padding:7px 7px 9px; border:2px solid transparent; border-radius:16px;
+  background:var(--pill); color:var(--text); cursor:pointer;
+  font-family:var(--font); touch-action:none; text-align:center;
+}
+.tcard canvas{ width:100%; aspect-ratio:120/84; border-radius:11px; display:block; }
+.tcard .tname{ font-weight:600; font-size:14px; }
+.tcard .tstate{ display:flex; align-items:center; justify-content:center; gap:4px;
+  font-weight:500; font-size:12.5px; color:var(--soft); min-height:16px; }
+.tcard.on{ border-color:var(--text); }                       /* 지금 쓰는 테마 */
+.tcard.on .tstate{ color:var(--text); font-weight:600; }
+.tcard.ask .tstate{ color:var(--text); font-weight:600; }    /* "열까요?" / "더 필요해요" */
+
 /* ---------- (꺼 둔 기능) 새 것 공개 화면: 살짝 가린 화면 위 반투명 흰 유리 창 ---------- */
 #reveal{
   position:fixed; inset:0; z-index:4;
