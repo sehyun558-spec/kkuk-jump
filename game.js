@@ -112,7 +112,9 @@ function updateBg(dt){
   }
   if (bgCss !== bgLastCss){ // 색이 바뀔 때만 화면 바깥 바탕·버튼·창 바탕도 바꿈
     bgLastCss = bgCss;
-    document.body.style.background = 'linear-gradient(' + rgbStr(skyTop) + ',' + rgbStr(skyBot) + ') fixed';
+    document.body.style.background = TH.night // 넓은 화면에서 게임 칸 바깥 바탕 (밤바다는 아래가 밤안개처럼 어둡게)
+      ? 'linear-gradient(' + rgbStr(skyTop) + ',' + rgbStr(skyBot) + ' 62%,' + TH.night.fogColor + ' 85%) fixed'
+      : 'linear-gradient(' + rgbStr(skyTop) + ',' + rgbStr(skyBot) + ') fixed';
     document.documentElement.style.setProperty('--bg', bgCss);
   }
 }
@@ -641,10 +643,10 @@ function pillarColor(p, a = 1){
 }
 function drawPillars(dip){
   const mid = [0, 1, 2].map(i => (skyTop[i] + skyBot[i]) / 2);
-  const [bh, bs, bl] = rgbToHsl(mid);
+  const [bh, bs, bl] = TH.night ? rgbToHsl(hexRgb(PL.color)) : rgbToHsl(mid); // 밤바다: 하늘에서 뽑지 않고 정해 둔 남색
   // 밝은 화면: 하늘보다 진하게 / 다크 모드: 하늘보다 밝게 (차분한 색)
-  const baseL = darkMode ? bl + PL.darkLift : bl - PL.darker;
-  const baseS = bs + PL.saturate;
+  const baseL = TH.night ? bl : darkMode ? bl + PL.darkLift : bl - PL.darker;
+  const baseS = TH.night ? bs : bs + PL.saturate;
   plBase = {bh, baseS, baseL};
   const fogTop = GY + (H - GY) * PL.fogStart, fogBot = GY + (H - GY) * PL.fogEnd;
   pillars.forEach((p, i) => {
@@ -654,6 +656,8 @@ function drawPillars(dip){
     const d = i === cur ? dip : 0; // 서 있는 발판만 눌림
     const h = bh + Math.sin(p.id * PL.hueStep) * PL.hueRange; // 기둥마다 색이 조금씩 흘러감
     const top = GY + d;
+    if (TH.night) drawNightPillar(sx, w, top, h, baseS, baseL); // 밤바다: 어두운 남색 돌기둥
+    else {
     // 몸통: 위는 기둥 색 → 아래로 살짝 어두워지면서 안개 속으로 투명해짐
     const g = ctx.createLinearGradient(0, top, 0, fogBot);
     const fogK = Math.max(0, Math.min(1, (fogTop - top) / Math.max(1, fogBot - top)));
@@ -665,6 +669,7 @@ function drawPillars(dip){
     // 윗면: 얇고 밝은 띠
     ctx.fillStyle = hsl(h, baseS * 0.8, baseL + PL.topLight);
     ctx.fillRect(sx, top, w, Math.max(2, S * PL.topBand));
+    }
     // "완벽!" 기준선: 은은하게 빛나는 흰 선 (살짝 번지는 빛 + 가운데 선)
     if (i > cur || state === 'ready'){
       const lw = JD.perfectLine * S, cx = sx + w / 2, lh = Math.max(2, S * 0.006);
@@ -760,7 +765,8 @@ function sprite(kind, color){
   return (spriteCache[key] = c);
 }
 function draw(){
-  ctx.fillStyle = skyGrad || bgCss; ctx.fillRect(0, 0, W, H); // 하늘 그라데이션
+  if (TH.night) drawNightBack(); // 밤바다: 하늘·별·달·수평선·바다·달빛 길
+  else { ctx.fillStyle = skyGrad || bgCss; ctx.fillRect(0, 0, W, H); } // 하늘 그라데이션
   drawDust(); // 빛 먼지 (기둥 뒤에서 떠다님)
   ctx.save();
   if (shake > 0.3) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
@@ -768,6 +774,7 @@ function draw(){
   const dip = state === 'charge' ? (charge / J.maxPower) * F.padDip * S : 0;
   const falling = state === 'fall' || state === 'over';
   if (falling){ drawPlayer(dip); drawPillars(dip); } else { drawPillars(dip); drawPlayer(dip); }
+  if (TH.night) drawNightFog(); // 밤바다: 아래쪽 밤안개 (기둥·바다·떨어진 네모가 함께 사라짐)
 
   for (const r of rings){
     ctx.globalAlpha = Math.max(r.life, 0) * 0.85; ctx.strokeStyle = EF.ringColor; ctx.lineWidth = 1.5; // 착지 고리
@@ -792,15 +799,16 @@ function draw(){
 
   // 게임 중 점수: 흰색 큰 숫자(Quicksand 굵게) + 옅은 그림자, 아래 BEST·COMBO
   const Z = UI.size;
+  const SM = UI.smallText || '#fff'; // 작은 글자 색 (꿈은 흰색, 밤바다는 연한 회청색)
   if (state !== 'ready' && state !== 'over'){
     const big = Math.min(S * 0.22, Z.score);
     let y = H * 0.14;
     text(String(score), W / 2, y, big, '#fff', UI.weightBig, 1, true);
     y += big * 0.7;
-    if (best > 0){ text(fmt(T.best, best), W / 2, y, Z.small, '#fff', UI.weight, 0.85, true); y += Z.small * 1.5; } // 기록이 없으면 안 보임 (B6)
-    if (combo > 1){ text(fmt(T.combo, combo), W / 2, y, Z.small, '#fff', UI.weightBig, 1, true); y += Z.small * 1.5; }
+    if (best > 0){ text(fmt(T.best, best), W / 2, y, Z.small, SM, UI.weight, 0.85, true); y += Z.small * 1.5; } // 기록이 없으면 안 보임 (B6)
+    if (combo > 1){ text(fmt(T.combo, combo), W / 2, y, Z.small, SM, UI.weightBig, 1, true); y += Z.small * 1.5; }
     const need = needText();
-    if (need) text(need, W / 2, y, Z.small + 1, '#fff', UI.weight, 0.95, true);
+    if (need) text(need, W / 2, y, Z.small + 1, SM, UI.weight, 0.95, true);
   }
 
   // 첫 화면: "꾹 점프"가 둥실둥실 천천히 떠 있고, 아래에 작은 "KKUK JUMP"
@@ -808,11 +816,11 @@ function draw(){
     const bob = Math.sin(now() / (UI.floatTime * 1000) * Math.PI * 2) * UI.floatTitle;
     const ts = Math.min(S * 0.17, Z.title), ty = H * 0.2 + bob;
     text(T.title, W / 2, ty, ts, '#fff', UI.weightBig, 1, true); // 한글 강조 굵기
-    text(T.titleEn, W / 2, ty + ts * 0.72, Z.titleEn, '#fff', UI.weight, 0.7, true, UI.titleEnTrack);
+    text(T.titleEn, W / 2, ty + ts * 0.72, Z.titleEn, SM, UI.weight, 0.7, true, UI.titleEnTrack);
     const gy = H * 0.2 + ts * 0.72 + 44;
-    text(T.guide1, W / 2, gy, Z.guide, '#fff', 400, 0.9, true);
-    text(T.guide2, W / 2, gy + Z.guide * 1.6, Z.guide, '#fff', 400, 0.9, true);
-    if (best) text(fmt(T.titleBest, best), W / 2, gy + Z.guide * 1.6 + 34, Z.small, '#fff', UI.weight, 0.75, true);
+    text(T.guide1, W / 2, gy, Z.guide, SM, 400, 0.9, true);
+    text(T.guide2, W / 2, gy + Z.guide * 1.6, Z.guide, SM, 400, 0.9, true);
+    if (best) text(fmt(T.titleBest, best), W / 2, gy + Z.guide * 1.6 + 34, Z.small, SM, UI.weight, 0.75, true);
   }
 
   // 게임 오버: 뿌연 반투명 막 위에 점수가 떠 있음
@@ -820,14 +828,14 @@ function draw(){
     const t = Math.min((now() - overAt) / 300, 1);
     ctx.globalAlpha = t; ctx.fillStyle = (darkMode ? UI.dark : UI.light).overVeil; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1;
     const cy = H * 0.36;
-    text(T.score, W / 2, cy - 76, Z.label, '#fff', UI.weight, 0.85 * t, true);
+    text(T.score, W / 2, cy - 76, Z.label, SM, UI.weight, 0.85 * t, true);
     text(String(score), W / 2, cy, Math.min(S * 0.28, Z.scoreOver), '#fff', UI.weightBig, t, true);
     if (newBest) text(T.newBest, W / 2, cy + 78, Z.label + 2, '#fff', UI.weightBig, t, true);
     else if (best > 0){
       const need = needText();
-      text(fmt(T.overBest, best) + (need ? '  ·  ' + need : ''), W / 2, cy + 78, Z.label, '#fff', UI.weight, 0.85 * t, true);
+      text(fmt(T.overBest, best) + (need ? '  ·  ' + need : ''), W / 2, cy + 78, Z.label, SM, UI.weight, 0.85 * t, true);
     }
-    text(T.retry, W / 2, H * 0.72, Z.retry, '#fff', 400, t * 0.9, true); // 한국어: 깜빡임 없이 차분하게
+    text(T.retry, W / 2, H * 0.72, Z.retry, SM, 400, t * 0.9, true); // 한국어: 깜빡임 없이 차분하게
   }
   drawStardustHud(); // 왼쪽 위 "✦ 숫자" (게임 오버 막보다 위에)
 }
@@ -934,6 +942,163 @@ function drawStardustHud(){
   }
 }
 
+// =====================================================================
+//  밤바다 그리기 (테마에 night 묶음이 있을 때만 쓰임. 꿈 테마는 이 부분을 지나가지 않음)
+//  뒤에서 앞으로: 하늘·별·달·수평선·바다(그림 한 장) → 달빛 길 → 기둥·네모 → 밤안개
+// =====================================================================
+const nightRgba = (hex, a) => 'rgba(' + hexRgb(hex).join(',') + ',' + a + ')';
+// 별 자리: 정해진 순서로 나오는 "가짜 무작위"라서 늘 같은 자리 (게임의 무작위 순서는 건드리지 않음)
+// 달 둘레와 가운데 글자(제목·점수·설명) 자리는 비워 두고, 남은 곳에서 n개를 고름
+function nightStars(n, w, h, top, mx, my, mr){
+  let s = 20240611;
+  const r = () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
+  const out = [];
+  for (let i = 0; i < 400 && out.length < n; i++){
+    const x = (0.04 + r() * 0.92) * w, y = 12 + r() * Math.max(10, top - 12), ph = r() * 6.28;
+    if (Math.hypot(x - mx, y - my) < mr * 3.5) continue;                                     // 달 둘레
+    if (w > 200 && Math.abs(x - w / 2) < w * 0.3 && y > h * 0.08 && y < h * 0.46) continue; // 글자 자리
+    if (w > 200 && y < 70) continue;                                                         // 맨 위 버튼·별가루 숫자 줄
+    out.push({x, y, ph});
+  }
+  return out;
+}
+// 하늘·바다·수평선·별·달무리·달을 한 번에 그림 (게임 화면 바탕과 테마 카드 그림이 같이 씀)
+// c = 그릴 곳, w·h = 크기, top·bot = 하늘 위·아래 색, gy = 기둥 윗면 높이, s = 기준 크기, mx·my·mr = 달 자리·반지름
+function paintNight(c, N, w, h, top, bot, gy, s, mx, my, mr, skipTwinkle){
+  const hy = gy + s * N.horizon, fe = gy + (h - gy) * N.fogEnd, hs = Math.max(2, s * N.horizonSize);
+  // 하늘: 위 짙은 남색 → 수평선 쪽 청록빛 남색
+  let g = c.createLinearGradient(0, 0, 0, hy);
+  g.addColorStop(0, top); g.addColorStop(1, bot);
+  c.fillStyle = g; c.fillRect(0, 0, w, hy + 1);
+  // 바다: 수평선 아래로 갈수록 어두워짐 → 안개 높이부터 거의 검정
+  const botRgb = bot.charAt(0) === '#' ? hexRgb(bot) : bot.match(/[\d.]+/g).map(Number); // '#색' 이나 'rgb(…)' 둘 다
+  const seaTop = rgbStr(hexRgb(N.seaTop).map((v, i) => v + (botRgb[i] - v) * N.seaMix));
+  g = c.createLinearGradient(0, hy, 0, h);
+  g.addColorStop(0, seaTop); g.addColorStop(Math.max(0.01, Math.min(1, (fe - hy) / (h - hy))), N.seaBottom); g.addColorStop(1, N.seaBottom);
+  c.fillStyle = g; c.fillRect(0, hy, w, h - hy);
+  // 수평선: 딱딱한 선 대신 하늘과 바다가 부드럽게 섞이는 옅은 빛 띠
+  g = c.createLinearGradient(0, hy - hs, 0, hy + hs);
+  g.addColorStop(0, nightRgba(N.horizonColor, 0)); g.addColorStop(0.5, nightRgba(N.horizonColor, N.horizonGlow)); g.addColorStop(1, nightRgba(N.horizonColor, 0));
+  c.fillStyle = g; c.fillRect(0, hy - hs, w, hs * 2);
+  // 별: 하늘에만 드문드문 (반짝이는 별은 게임 화면에서 따로 그림). 달 둘레는 비움
+  c.fillStyle = N.starColor;
+  nightStars(N.stars, w, h, w > 200 ? hy - hs - 50 : hy - 12, mx, my, mr).forEach((st, i) => { // (작은 카드 그림은 수평선 바로 위까지)
+    if (skipTwinkle && i < N.twinkle) return;
+    c.globalAlpha = N.starAlpha * (0.6 + 0.4 * ((i * 37) % 10) / 10);
+    c.beginPath(); c.arc(st.x, st.y, N.starSize * (w < 200 ? 0.7 : 1), 0, Math.PI * 2); c.fill();
+  });
+  c.globalAlpha = 1;
+  // 달무리 2겹 (아주 옅게)
+  for (const hl of N.halos){
+    const hr = mr * hl.size;
+    g = c.createRadialGradient(mx, my, mr, mx, my, hr);
+    g.addColorStop(0, nightRgba(N.haloColor, hl.alpha)); g.addColorStop(1, nightRgba(N.haloColor, 0));
+    c.fillStyle = g; c.fillRect(mx - hr, my - hr, hr * 2, hr * 2);
+  }
+  // 달: 가장자리가 또렷한 크림색 원 + 아주 옅은 얼룩 3개
+  c.fillStyle = N.moonColor; c.beginPath(); c.arc(mx, my, mr, 0, Math.PI * 2); c.fill();
+  if (N.moonSpots > 0){
+    c.save(); c.clip(); c.fillStyle = 'rgba(120,100,60,' + N.moonSpots + ')';
+    for (const [dx, dy, rr] of [[-0.32, -0.18, 0.24], [0.28, 0.12, 0.2], [-0.06, 0.42, 0.15]]){
+      c.beginPath(); c.arc(mx + dx * mr, my + dy * mr, rr * mr, 0, Math.PI * 2); c.fill();
+    }
+    c.restore();
+  }
+}
+// 달빛 길: 수평선에서 아래로 이어지는 하나의 부드러운 빛 띠 (가로로 흐린 얇은 빛을 위에서 아래로 촘촘히 쌓음)
+// 아래로 갈수록 조금 넓어지고 흐려짐. (x, hy) = 띠 맨 위 가운데, len = 길이, wid = 너비
+function paintNightPath(c, N, x, hy, len, wid){
+  const img = sprite('glow', N.pathColor), step = len > 200 ? 1 : 0.5;
+  for (let y = 0; y < len; y += step){
+    const f = y / len, w = wid * (0.45 + 0.55 * f);
+    c.globalAlpha = Math.min(1, f * 30) * Math.pow(1 - f, 1.5) * 0.18 * step;
+    c.drawImage(img, x - w / 2, hy + y - 4, w, 8);
+  }
+  c.globalAlpha = 1;
+}
+
+// ---------- 게임 화면: 움직이지 않는 바탕은 미리 그려 두고 다시 씀 ----------
+let nightBg = null, nightBgKey = '', nightBgAt = -1e9, nightPath = null, nightPathKey = '';
+let nightMoon = {x: 0, y: 0, r: 0}, nightTwinkle = [];
+const nightDpr = () => Math.min(window.devicePixelRatio || 1, 2);
+function nightMoonPlace(){ // 달 자리: 오른쪽 위 버튼 바로 아래 (어떤 화면 크기에서도 버튼·제목·점수와 안 겹치게)
+  const N = TH.night, r = N.moonSize * S;
+  const ui = document.getElementById('ui').getBoundingClientRect();
+  nightMoon = {x: W - N.moonRight - r, y: Math.max(0, ui.bottom) + N.moonBelow + r, r};
+}
+function drawNightBack(){
+  const N = TH.night, dpr = nightDpr(), t = now();
+  const size = W + 'x' + H + 'x' + dpr + TH.name;
+  const key = rgbStr(skyTop) + rgbStr(skyBot) + size;
+  // 하늘 색이 천천히 바뀌는 동안에는 가끔만 다시 그림 (화면 크기가 바뀌면 바로)
+  if (!nightBg || (key !== nightBgKey && (!nightBgKey.endsWith(size) || t - nightBgAt > N.redraw * 1000))){
+    if (!nightBg) nightBg = document.createElement('canvas');
+    nightBg.width = Math.round(W * dpr); nightBg.height = Math.round(H * dpr);
+    const c = nightBg.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    nightMoonPlace();
+    paintNight(c, N, W, H, rgbStr(skyTop), rgbStr(skyBot), GY, S, nightMoon.x, nightMoon.y, nightMoon.r, true);
+    const hz = GY + S * N.horizon - Math.max(2, S * N.horizonSize) - 50;
+    nightTwinkle = nightStars(N.stars, W, H, hz, nightMoon.x, nightMoon.y, nightMoon.r).slice(0, N.twinkle); // 반짝이는 별 자리
+    nightBgKey = key; nightBgAt = t;
+  }
+  ctx.drawImage(nightBg, 0, 0, W, H);
+  // 달빛 길: 화면 크기가 바뀔 때만 새로 그려 두고, 매 순간 아주 천천히 살짝 일렁이게 붙임
+  const hy = GY + S * N.horizon, len = Math.max(10, GY + (H - GY) * N.fogEnd - hy), wid = N.pathWidth * S;
+  if (!nightPath || nightPathKey !== size){
+    if (!nightPath) nightPath = document.createElement('canvas');
+    nightPath.width = Math.round(wid * 1.4 * dpr); nightPath.height = Math.round(len * dpr);
+    const c = nightPath.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    paintNightPath(c, N, wid * 0.7, 0, len, wid);
+    nightPathKey = size;
+  }
+  const ph = t / 1000 / N.pathTime * Math.PI * 2;
+  ctx.globalAlpha = N.pathAlpha * (0.9 + 0.1 * Math.sin(ph * 1.3));
+  ctx.drawImage(nightPath, nightMoon.x - wid * 0.7 + Math.sin(ph) * N.pathSway, hy, wid * 1.4, len);
+  // 반짝이는 별 몇 개: 아주 천천히 밝아졌다 흐려짐
+  ctx.fillStyle = N.starColor;
+  for (const st of nightTwinkle){
+    ctx.globalAlpha = N.starAlpha * (0.25 + 0.75 * (0.5 + 0.5 * Math.sin(t / 1000 / N.twinkleTime * Math.PI * 2 + st.ph)));
+    ctx.beginPath(); ctx.arc(st.x, st.y, N.starSize, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+// 기둥 하나 (밤바다): 어두운 남색, 왼쪽(달 반대쪽) 옆면에 아주 옅은 그늘, 윗면 가장자리에 얇은 달빛 띠
+// 아래쪽은 화면 끝까지 내려가고, 위에 덮는 밤안개가 감춤 → 끝선이 안 보임
+function drawNightPillar(sx, w, top, hue, S0, L0){
+  ctx.fillStyle = hsl(hue, S0, L0); ctx.fillRect(sx, top, w, H - top + 40);
+  if (PL.shade > 0){
+    const g = ctx.createLinearGradient(sx, 0, sx + w * 0.45, 0);
+    g.addColorStop(0, 'rgba(0,0,0,' + PL.shade + ')'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(sx, top, w * 0.45, H - top + 40);
+  }
+  ctx.globalAlpha = PL.topAlpha; ctx.fillStyle = PL.topColor;
+  ctx.fillRect(sx, top, w, Math.max(1, S * PL.topBand));
+  ctx.globalAlpha = 1;
+}
+// 밤안개: 화면 아래쪽을 짙은 밤 색으로 부드럽게 덮어 기둥과 바다(와 떨어진 네모)가 함께 사라지게
+function drawNightFog(){
+  const N = TH.night, a = GY + (H - GY) * N.fogStart, b = GY + (H - GY) * N.fogEnd;
+  const g = ctx.createLinearGradient(0, a, 0, b);
+  g.addColorStop(0, nightRgba(N.fogColor, 0)); g.addColorStop(0.55, nightRgba(N.fogColor, 0.7)); g.addColorStop(1, nightRgba(N.fogColor, 1));
+  ctx.fillStyle = g; ctx.fillRect(-40, a, W + 80, b - a);
+  ctx.fillStyle = N.fogColor; ctx.fillRect(-40, b - 0.5, W + 80, H - b + 60);
+}
+// 테마 카드 미리보기 (밤바다): 게임 화면을 작게 줄인 모습
+function drawNightPreview(c, w, h, t, sk){
+  const N = t.night, gy = h * 0.6, s = 60, mr = 6;
+  paintNight(c, N, w, h, sk.top, sk.bottom, gy, s, w * 0.8, h * 0.2, mr, false);
+  const hy = gy + s * N.horizon, fe = gy + (h - gy) * N.fogEnd;
+  c.globalAlpha = N.pathAlpha; paintNightPath(c, N, w * 0.8, hy, fe - hy, 12); c.globalAlpha = 1;
+  const p = t.pillar, [bh, bs, bl] = rgbToHsl(hexRgb(p.color));
+  [[14, 34, 0], [70, 30, 1]].forEach(([x, pw, id]) => {
+    c.fillStyle = hsl(bh + Math.sin(id * p.hueStep) * p.hueRange, bs, bl); c.fillRect(x, gy, pw, h - gy);
+    c.globalAlpha = p.topAlpha; c.fillStyle = p.topColor; c.fillRect(x, gy, pw, 1); c.globalAlpha = 1;
+  });
+  const g = c.createLinearGradient(0, gy + (h - gy) * N.fogStart, 0, fe);
+  g.addColorStop(0, nightRgba(N.fogColor, 0)); g.addColorStop(1, nightRgba(N.fogColor, 1));
+  c.fillStyle = g; c.fillRect(0, gy + (h - gy) * N.fogStart, w, h);
+}
+
 // ---------- 빛 먼지 ----------
 // 동그랗고 흐린 점들이 아주 천천히 위로 떠오름. 다크 모드에서는 별처럼 반짝임
 let dust = [];
@@ -1034,6 +1199,7 @@ function drawPreview(cnv, t){
   cnv.width = w * dpr; cnv.height = h * dpr;
   const c = cnv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
   const sk = (darkMode ? t.sky.dark : t.sky.light)[0];
+  if (t.night){ drawNightPreview(c, w, h, t, sk); drawPreviewCube(c, t, h * 0.6); return; } // 밤바다는 따로
   const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, sk.top); g.addColorStop(1, sk.bottom);
   c.fillStyle = g; c.fillRect(0, 0, w, h);
   const mid = [0, 1, 2].map(i => (hexRgb(sk.top)[i] + hexRgb(sk.bottom)[i]) / 2);
@@ -1046,6 +1212,9 @@ function drawPreview(cnv, t){
     c.fillStyle = pg; c.fillRect(x, gy, pw, h - gy);
     c.fillStyle = hsl(hue, Sa * 0.8, L + p.topLight); c.fillRect(x, gy, pw, 2);
   });
+  drawPreviewCube(c, t, gy);
+}
+function drawPreviewCube(c, t, gy){ // 카드 미리보기의 네모
   const cc = darkMode ? t.cube.dark : t.cube.light, s = 15, cx = 31 - s / 2, cy = gy - s;
   const cg = c.createLinearGradient(0, cy, 0, cy + s); cg.addColorStop(0, cc.top); cg.addColorStop(1, cc.bottom);
   c.fillStyle = cg;
