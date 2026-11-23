@@ -122,23 +122,23 @@ const SETTINGS = {
   skins: [
     {
       id: 'basic', name: '기본', unlock: 0,
-      light: { body: '#ff5a4e' },   // 코랄 빨강 (지금 네모)
-      dark:  { body: '#ff6a5c' },
+      light: { body: '#FF7B70' },   // 부드러운 코랄 핑크 (원래 #ff5a4e)
+      dark:  { body: '#FF8A80' },   // (원래 #ff6a5c)
     },
     {
       id: 'violet', name: '보라', unlock: 10, grade: 1,
-      light: { body: '#7C6CF2' },   // 보라빛 블루
-      dark:  { body: '#9A8DF7' },   // 다크 모드용: 살짝 밝게
+      light: { body: '#8477F2' },   // 보라빛 블루, 조금 더 맑게 (원래 #7C6CF2)
+      dark:  { body: '#A49AF9' },   // 다크 모드용: 살짝 밝게 (원래 #9A8DF7)
     },
     {
       id: 'silver', name: '은색', unlock: 50, grade: 1,
-      light: { body: '#ABAAB0', shine: true },  // 은색 + 왼쪽 위 흰 빛줄기
-      dark:  { body: '#C9C8CE', shine: true },  // 다크 모드용: 어두운 바탕에서 잘 보이게 더 밝게
+      light: { body: '#A9AFC4', shine: true },  // 맑은 은빛 (살짝 푸른 기, 밝은 하늘에서도 안 묻히게) (원래 #ABAAB0)
+      dark:  { body: '#CDD1DE', shine: true },  // 다크 모드용: 더 밝게 (원래 #C9C8CE)
     },
     {
       id: 'gold', name: '골드', unlock: 100, grade: 2,
-      light: { body: '#D99E2B', shine: true, ripple: '#D99E2B' }, // 진한 금색 + 빛줄기 + 착지 파동
-      dark:  { body: '#EAB043', shine: true, ripple: '#EAB043' }, // 다크 모드용: 살짝 밝게
+      light: { body: '#E0A63A', shine: true, ripple: '#FFF1CF' }, // 따뜻한 금색 + 빛줄기 + 흰빛 금색 착지 파동 (원래 #D99E2B)
+      dark:  { body: '#EDB852', shine: true, ripple: '#F8DFA2' }, // 다크 모드용: 살짝 밝게 (원래 #EAB043)
     },
   ],
   // [스킨에 넣을 수 있는 것]
@@ -156,6 +156,18 @@ const SETTINGS = {
     // 빛줄기 (shine: true인 스킨)
     shineAlpha: 0.8,     // 빛줄기 진하기 (0~1). 작게 하면 → 더 은은하게
     shineWidth: 0.06,    // 빛줄기 굵기 (네모 크기 기준). 작게 하면 → 더 얇게
+  },
+
+  // ---------- 네모(플레이어) 둘레 효과 ----------
+  playerLook: {
+    shadowAlpha: 0.4,    // 기둥 위 그림자 진하기 (0~1). 크게 하면 → 그림자가 진해짐
+    shadowSize: 1.4,     // 그림자 너비 (네모 크기의 몇 배)
+    shadowFade: 0.4,     // 이만큼 높이 뜨면 그림자가 거의 사라짐. 작게 하면 → 조금만 떠도 흐려짐
+    glowAlpha: 0.35,     // 밝은 화면: 네모 둘레 빛 진하기. 0이면 → 빛 없음
+    glowAlphaDark: 0.5,  // 다크 모드: 네모 둘레 빛 진하기
+    glowSize: 2.4,       // 빛이 번지는 크기 (네모 크기의 몇 배)
+    fallFade: 0.45,      // 떨어질 때 이만큼 내려가면 안개 속으로 완전히 사라짐. 작게 하면 → 더 빨리 사라짐
+    sparkSize: 0.8,      // "완벽!" 조각 크기. 작게 하면 → 더 작고 은은하게
   },
 
   // ---------- 착지 파동 (골드 스킨 전용) ----------

@@ -210,6 +210,7 @@ let shake = 0, parts = [], pops = [], rings = [];
 let trail = [];          // 점프 중 잔상 (trail이 있는 스킨)
 let ripples = [];        // 착지 파동 고리 (골드 스킨)
 const RP = SET.ripple;
+const PLY = SET.playerLook;
 let announced = {};      // 이번 판에 이미 획득 신호를 낸 스킨
 let gotThisGame = [];    // 이번 판에 새로 얻은 스킨들 (게임 오버 뒤 공개 화면에서 차례로 보여 줌)
 let flash = null;        // 화면 테두리 반짝임 {color, t}
@@ -268,11 +269,14 @@ function reset(){
 
 // ---------- 효과 ----------
 // 튀는 조각: 한 번에 maxBurst개까지만 (B8, 버벅임 방지)
-function burst(x, col, n){
+// cols: 색 목록 (흰색·기둥 색 등을 섞어 씀). 작고 둥글고 부드럽게
+function burst(x, cols, n){
   n = Math.min(n, FX.maxBurst);
   for (let i = 0; i < n; i++){
     const a = -Math.PI * Math.random(), v = 0.4 + Math.random() * 1.1;
-    parts.push({x, y: 0, vx: Math.cos(a) * v, vy: Math.sin(a) * v, s: 0.008 + Math.random() * 0.012, life: 1, col});
+    const col = cols[i % cols.length];
+    parts.push({x, y: 0, vx: Math.cos(a) * v, vy: Math.sin(a) * v,
+      s: (0.006 + Math.random() * 0.01) * PLY.sparkSize, life: 1, col});
   }
 }
 // 떠오르는 글자 (y는 기둥 윗면에서 위로 얼마나, 기준 크기 단위)
@@ -416,7 +420,7 @@ function land(){
       // 완벽! — 콤보가 쌓일수록 점수·음·흔들림·조각이 커짐
       combo++; gain = 1 + Math.min(combo, JD.maxBonus);
       player.x = center;
-      burst(center, C.accent, FX.burstBase + combo * FX.burstPerCombo);
+      burst(center, ['rgba(255,255,255,0.95)', pillarColor(n)], FX.burstBase + combo * FX.burstPerCombo); // 흰색 + 그 기둥 색
       rings.push({x: center, r: F.playerSize * 0.6, life: 1});
       shake = FX.shakePerfect + Math.min(combo, FX.shakeComboMax) * FX.shakePerCombo;
       Sound.buzz(18);
@@ -425,7 +429,7 @@ function land(){
     } else {
       // 보통 착지 (기둥을 건너뛴 착지도 1점, 콤보는 끊김)
       combo = 0;
-      burst(px, C.sub, 6);
+      burst(px, ['rgba(255,255,255,0.85)'], 6);
       Sound.tone(330, 0.07, 'sine', 0.07); Sound.buzz(8);
       if (edge < JD.closeEdge) pop('아슬아슬!', px, -F.playerSize * 3.3, C.ink, true);
     }
@@ -615,12 +619,19 @@ function hsl(h, s, l, a = 1){
   s = Math.max(0, Math.min(1, s)); l = Math.max(0, Math.min(1, l));
   return 'hsla(' + h.toFixed(1) + ',' + (s * 100).toFixed(1) + '%,' + (l * 100).toFixed(1) + '%,' + a + ')';
 }
+let plBase = null; // 이번 화면의 기둥 기본 색 (조각 색에도 씀)
+// 기둥 하나의 색 (그 기둥 번호에 맞게 흘러간 색)
+function pillarColor(p, a = 1){
+  if (!plBase || p.id === undefined) return 'rgba(255,255,255,' + a + ')';
+  return hsl(plBase.bh + Math.sin(p.id * PL.hueStep) * PL.hueRange, plBase.baseS, plBase.baseL, a);
+}
 function drawPillars(dip){
   const mid = [0, 1, 2].map(i => (skyTop[i] + skyBot[i]) / 2);
   const [bh, bs, bl] = rgbToHsl(mid);
   // 밝은 화면: 하늘보다 진하게 / 다크 모드: 하늘보다 밝게 (차분한 색)
   const baseL = darkMode ? bl + PL.darkLift : bl - PL.darker;
   const baseS = bs + PL.saturate;
+  plBase = {bh, baseS, baseL};
   const fogTop = GY + (H - GY) * PL.fogStart, fogBot = GY + (H - GY) * PL.fogEnd;
   pillars.forEach((p, i) => {
     if (p.id === undefined) p.id = pillarSeq++;
@@ -695,8 +706,44 @@ function drawPlayer(dip){
       drawSquare(toX(t.x), GY + t.y * S, t.rot, t.sq, {body: col.trail}, a);
     });
   }
-  const sy = GY + (state === 'charge' || state === 'idle' ? dip : 0) + player.y * S;
-  drawSquare(toX(player.x), sy, player.rot, player.sq, col, 1);
+  const onGround = state === 'charge' || state === 'idle';
+  const sy = GY + (onGround ? dip : 0) + player.y * S;
+  const falling = state === 'fall' || state === 'over';
+  // 떨어질 때: 아래로 내려갈수록 투명해져 안개 속으로 빠져듦
+  const alpha = falling ? Math.max(0, 1 - Math.max(0, player.y) / PLY.fallFade) : 1;
+  if (alpha <= 0) return;
+  const s = F.playerSize * S, sx = toX(player.x);
+  // 그림자: 기둥 윗면에 부드럽게. 높이 뜰수록 작고 흐려짐 (기둥 위에 있을 때만)
+  if (!falling){
+    const under = pillars.find(q => player.x >= q.x && player.x <= q.x + q.w);
+    if (under){
+      const k = Math.min(1, Math.max(0, -player.y) / PLY.shadowFade);
+      const sw = s * PLY.shadowSize * (1 - 0.55 * k), sh = sw * 0.3;
+      const gy = GY + (pillars.indexOf(under) === cur ? dip : 0);
+      ctx.globalAlpha = PLY.shadowAlpha * (1 - k);
+      ctx.drawImage(sprite('shadow', darkMode ? '0,0,0' : '60,40,100'), sx - sw / 2, gy - sh / 2, sw, sh);
+      ctx.globalAlpha = 1;
+    }
+  }
+  // 은은한 빛: 네모 둘레에 살짝 번져서 하늘에서 붕 떠 보이게
+  const gs = s * PLY.glowSize;
+  ctx.globalAlpha = (darkMode ? PLY.glowAlphaDark : PLY.glowAlpha) * alpha;
+  ctx.drawImage(sprite('glow', col.body), sx - gs / 2, sy - s * player.sq / 2 - gs / 2, gs, gs);
+  ctx.globalAlpha = 1;
+  drawSquare(sx, sy, player.rot, player.sq, col, alpha);
+}
+// 번지는 동그라미 그림을 한 번만 그려 두고 다시 씀 (폰에서 가볍게)
+const spriteCache = {};
+function sprite(kind, color){
+  const key = kind + color;
+  if (spriteCache[key]) return spriteCache[key];
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  const rgb = color.charAt(0) === '#' ? hexRgb(color).join(',') : color;
+  if (kind === 'shadow'){ g.addColorStop(0, 'rgba(' + rgb + ',1)'); g.addColorStop(0.5, 'rgba(' + rgb + ',0.5)'); g.addColorStop(1, 'rgba(' + rgb + ',0)'); }
+  else { g.addColorStop(0, 'rgba(' + rgb + ',0.9)'); g.addColorStop(0.35, 'rgba(' + rgb + ',0.45)'); g.addColorStop(1, 'rgba(' + rgb + ',0)'); }
+  x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+  return (spriteCache[key] = c);
 }
 function draw(){
   ctx.fillStyle = skyGrad || bgCss; ctx.fillRect(0, 0, W, H); // 하늘 그라데이션
@@ -708,7 +755,7 @@ function draw(){
   if (falling){ drawPlayer(dip); drawPillars(dip); } else { drawPillars(dip); drawPlayer(dip); }
 
   for (const r of rings){
-    ctx.globalAlpha = Math.max(r.life, 0); ctx.strokeStyle = C.accent; ctx.lineWidth = 2;
+    ctx.globalAlpha = Math.max(r.life, 0) * 0.85; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; // 흰색 고리
     ctx.beginPath(); ctx.ellipse(toX(r.x), GY, r.r * S, r.r * S * 0.32, 0, 0, Math.PI * 2); ctx.stroke();
   }
   // 골드 착지 파동: 처음엔 빠르게 퍼지다 느려지고, 퍼질수록 흐려짐
@@ -725,10 +772,17 @@ function draw(){
   for (const p of parts){
     const sz = p.s * S;
     ctx.globalAlpha = Math.max(p.life, 0); ctx.fillStyle = p.col;
-    ctx.fillRect(toX(p.x) - sz / 2, toY(p.y) - sz / 2, sz, sz);
+    ctx.beginPath(); ctx.arc(toX(p.x), toY(p.y), Math.max(1, sz / 2), 0, Math.PI * 2); ctx.fill(); // 작고 둥근 조각
   }
   ctx.globalAlpha = 1;
-  for (const p of pops) text(p.text, toX(p.x), toY(p.y), p.big ? S * 0.065 : S * 0.05, p.col, 800, Math.min(1, p.life * 1.5));
+  // 떠오르는 글자: 흰색에 옅은 그림자 (어느 하늘에서도 잘 읽히게)
+  if (pops.length){
+    ctx.save();
+    ctx.shadowColor = darkMode ? 'rgba(0,0,0,0.45)' : 'rgba(70,50,110,0.28)';
+    ctx.shadowBlur = 6; ctx.shadowOffsetY = 1;
+    for (const p of pops) text(p.text, toX(p.x), toY(p.y), p.big ? S * 0.065 : S * 0.05, '#fff', 800, Math.min(1, p.life * 1.5));
+    ctx.restore();
+  }
   ctx.restore();
 
   // 게임 중 점수
