@@ -23,7 +23,7 @@ const now = () => performance.now();
 // 그래서 게임 중 폰을 돌려 화면 크기가 바뀌어도 네모와 기둥이 함께 맞춰집니다 (B2).
 
 // ---------- 색 (밝은/어두운 화면) ----------
-let C, darkMode = false;
+let darkMode = false;
 let bgSnap = true;      // 다크 모드가 바뀌면 배경색을 바로 맞춤 (천천히 넘어가지 않고)
 let skinsReady = false; // 스킨 버튼이 만들어진 뒤에야 색을 다시 칠함
 const darkQuery = matchMedia('(prefers-color-scheme: dark)');
@@ -31,17 +31,14 @@ function pickColors(){
   const t = document.documentElement.dataset.theme;
   const dark = t === 'dark' || (t !== 'light' && darkQuery.matches);
   darkMode = dark;
-  C = dark ? SET.colors.dark : SET.colors.light;
   if (skinsReady) paintSkins(); // 다크 모드가 바뀌면 스킨 버튼 색도 바꿈
   paintVignette();     // 가장자리 막 색도
-  // 버튼·안내 글자 색도 같은 색으로 (style.css의 --bg 등을 덮어씀)
+  // 버튼·창 글자 색 (style.css의 --text 등을 덮어씀). 바탕(--bg)은 하늘 색을 따라감
   const st = document.documentElement.style;
-  st.setProperty('--bg', C.bg);
   const u = dark ? SET.ui.dark : SET.ui.light; // 버튼·창 색 (settings.js의 ui)
   for (const k of ['text', 'soft', 'pill', 'glass', 'scrim', 'useBg', 'useText', 'dot', 'select']) st.setProperty('--' + k, u[k]);
   st.setProperty('--font', (SET.ui.font ? '"' + SET.ui.font + '",' : '') + SYS_FONT);
-  document.body.style.background = C.bg;
-  bgSnap = true;
+  bgSnap = true; // 하늘을 새 모드 색으로 바로 맞춤
 }
 pickColors();
 
@@ -50,11 +47,10 @@ pickColors();
 const SKY = SET.sky;
 let skyTop = null, skyBot = null;    // 지금 하늘의 위·아래 색 [빨,초,파]
 let bgReturn = false;                // 다시 시작해서 첫 테마로 돌아가는 중인지
-let bgCss = C.bg, bgVeil = C.veil, bgLastCss = '';
+let bgCss = '', bgLastCss = '';
 let skyGrad = null, skyGradKey = ''; // 그라데이션은 색이 바뀔 때만 새로 만듦 (가볍게)
 const hexRgb = h => { h = h.replace('#', ''); return [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16)); };
 const rgbStr = c => 'rgb(' + c.map(Math.round).join(',') + ')';
-const veilAlpha = () => { const m = /,\s*([\d.]+)\s*\)\s*$/.exec(C.veil); return m ? +m[1] : 0.9; };
 // 지금 점수에 맞는 테마: every점마다 다음 테마, 마지막 다음엔 처음부터 다시
 function skyTheme(){
   const list = darkMode ? SKY.dark : SKY.light;
@@ -76,7 +72,6 @@ function updateBg(dt){
   }
   const mid = [0, 1, 2].map(i => (skyTop[i] + skyBot[i]) / 2);
   bgCss = rgbStr(mid);                                             // 버튼·창 바탕용 (가운데 색)
-  bgVeil = 'rgba(' + mid.map(Math.round).join(',') + ',' + veilAlpha() + ')';
   const key = rgbStr(skyTop) + rgbStr(skyBot) + H;
   if (key !== skyGradKey){
     skyGradKey = key;
@@ -130,7 +125,9 @@ const TEST = (() => {
 })();
 if (TEST){
   best = TEST;
-  document.getElementById('ver').textContent += ' · 테스트 ' + TEST + '점';
+  const ver = document.getElementById('ver');
+  ver.textContent += ' · 테스트 ' + TEST + '점';
+  ver.classList.add('show'); // 버전 표시는 테스트 모드일 때만 보임
 }
 const save = (key, value) => { if (!TEST) Store.set(key, value); }; // 테스트 중엔 저장 안 함
 let plays = readNumber('kkuk_plays');  // 플레이 횟수 (한 판 = 1)
@@ -156,7 +153,7 @@ function buildSkins(){
   SKINS.forEach(sk => {
     const b = document.createElement('button');
     b.type = 'button';
-    b.innerHTML = '<span class="frame"><span class="chip"><i></i><b></b></span></span><span class="cond"></span>';
+    b.innerHTML = '<span class="frame"><span class="chip"><b></b></span></span><span class="cond"></span>';
     b.addEventListener('click', () => {
       b.blur(); // 스페이스바가 버튼을 다시 누르지 않게
       if (!isUnlocked(sk)) return; // 잠긴 스킨은 못 고름
@@ -178,9 +175,6 @@ function paintSkins(){
     b.classList.toggle('locked', !open);        // 잠긴 스킨은 흐리게
     b.setAttribute('aria-label', sk.name + ' 스킨' + (open ? '' : ' (잠김, ' + sk.unlock + '점)'));
     b.querySelector('.chip').style.background = col.body;
-    const inner = b.querySelector('.chip i');
-    inner.style.display = col.inner ? 'block' : 'none';
-    if (col.inner) inner.style.background = col.inner;
     b.querySelector('.chip b').style.display = col.shine ? 'block' : 'none'; // 빛줄기
     b.querySelector('.cond').textContent = open ? '' : sk.unlock + '점'; // 조건 작게
   });
@@ -218,7 +212,6 @@ skinModal.addEventListener('click', e => { if (e.target === skinModal) closeSkin
 // state: 'ready'(첫 화면) / 'idle'(기둥 위 대기) / 'charge'(힘 모으는 중) / 'fly'(점프 중) / 'fall'(떨어지는 중) / 'over'(게임 오버)
 let state, pillars, cur, player, camX, camFocus, score, combo, charge, jump;
 let shake = 0, parts = [], pops = [], rings = [];
-let trail = [];          // 점프 중 잔상 (trail이 있는 스킨)
 let ripples = [];        // 착지 파동 고리 (골드 스킨)
 const RP = SET.ripple;
 const PLY = SET.playerLook;
@@ -266,7 +259,7 @@ function fillAhead(){
 function reset(){
   score = TEST; combo = 0; cur = 0; charge = 0; // 보통은 0점에서 시작 (테스트 모드면 그 점수에서)
   newBest = false; passedBest = false; startBest = best;
-  parts = []; pops = []; rings = []; trail = []; ripples = []; announced = {};
+  parts = []; pops = []; rings = []; ripples = []; announced = {};
   gotThisGame = []; flash = null; slowT = Infinity;
   wideIn = randInt(R.everyMin, R.everyMax);
   bgReturn = true; // 하늘을 첫 테마로 (resetTime초에 걸쳐)
@@ -291,7 +284,8 @@ function burst(x, cols, n){
   }
 }
 // 떠오르는 글자 (y는 기둥 윗면에서 위로 얼마나, 기준 크기 단위)
-function pop(text, x, y, col, big){ pops.push({text, x, y, col, big, life: 1}); }
+// big = 큰 글자, faint = 흐리고 작게 (예: "콤보 5 끝")
+function pop(text, x, y, big, faint = false){ pops.push({text, x, y, big, faint, life: 1}); }
 
 // ---------- 입력 ----------
 function press(){
@@ -364,7 +358,7 @@ function addScore(gain){
   if (score > best){
     // 게임 중 기록을 넘는 순간 "신기록!" (첫 기록일 땐 안 띄움)
     if (startBest > 0 && !passedBest){
-      pop('신기록!', player.x, -F.playerSize * 4.5, C.accent, true);
+      pop('신기록!', player.x, -F.playerSize * 4.5, true);
       Sound.tone(784, 0.18, 'triangle', 0.08);
     }
     passedBest = true;
@@ -436,17 +430,19 @@ function land(){
       shake = FX.shakePerfect + Math.min(combo, FX.shakeComboMax) * FX.shakePerCombo;
       Sound.buzz(18);
       Sound.tone(Sound.note(combo), 0.2, 'triangle', 0.12);
-      pop(combo > 1 ? '완벽! ×' + combo : '완벽!', center, -F.playerSize * 3.3, C.accent, true);
+      pop(combo > 1 ? '완벽! ×' + combo : '완벽!', center, -F.playerSize * 3.3, true);
     } else {
       // 보통 착지 (기둥을 건너뛴 착지도 1점, 콤보는 끊김)
+      // 완벽 콤보가 comboEndMin 이상 쌓였다가 끊기면 "콤보 ○ 끝"을 잠깐 흐리게
+      if (combo >= SET.alert.comboEndMin) pop('콤보 ' + combo + ' 끝', px, -F.playerSize * 4.4, false, true);
       combo = 0;
       burst(px, ['rgba(255,255,255,0.85)'], 6);
       Sound.tone(330, 0.07, 'sine', 0.07); Sound.buzz(8);
-      if (edge < JD.closeEdge) pop('아슬아슬!', px, -F.playerSize * 3.3, C.ink, true);
+      if (edge < JD.closeEdge) pop('아슬아슬!', px, -F.playerSize * 3.3, true);
     }
     addRipple(player.x, gain > 1); // gain > 1 이면 "완벽!" 착지
     addScore(gain);
-    pop('+' + gain, player.x, -F.playerSize * 2.2, gain > 1 ? C.accent : C.ink, false);
+    pop('+' + gain, player.x, -F.playerSize * 2.2, false);
     cur = j;
     fillAhead();
     while (cur > 3){ pillars.shift(); cur--; } // 지나간 기둥 정리
@@ -462,7 +458,7 @@ function land(){
     const d = Math.min(Math.abs(px - p.x), Math.abs(px - (p.x + p.w)));
     if (d < near){ near = d; np = p; }
   }
-  if (near - JD.edgeForgive < JD.missNear) pop('아깝다!', px, -F.playerSize * 3, C.accent, true);
+  if (near - JD.edgeForgive < JD.missNear) pop('아깝다!', px, -F.playerSize * 3, true);
   player.dir = px < np.x ? -1 : 1;
   player.vy = 0; state = 'fall'; fallAt = now();
   shake = FX.shakeFail; Sound.buzz([30, 40, 70]);
@@ -471,7 +467,8 @@ function land(){
 function gameOver(){
   state = 'over'; overAt = now();
   plays++; save('kkuk_plays', plays);
-  newBest = score > startBest;
+  // "최고 기록 달성!"은 기록을 넘었고, 점수가 newBestMin 이상일 때만 (기록 저장은 항상 됨)
+  newBest = score > startBest && score >= SET.alert.newBestMin;
   if (newBest) Sound.tone(784, 0.25, 'triangle', 0.1);
   if (gotThisGame.length) startReveal(gotThisGame.slice()); // 새 스킨을 얻었으면 공개 화면 먼저
 }
@@ -565,15 +562,8 @@ function update(dt){
     player.x = jump.x0 + jump.d * k;
     player.y = -4 * jump.h * k * (1 - k);              // 포물선
     player.rot = jump.d > 0.05 ? k * Math.PI * 2 : 0;  // 한 바퀴 회전
-    // 잔상 기록 (잔상 색이 있는 스킨만, 점프하는 동안만)
-    if (skinColors(currentSkin()).trail && LOOK.trailCount > 0){
-      trail.push({x: player.x, y: player.y, rot: player.rot, sq: player.sq, life: 1});
-      if (trail.length > LOOK.trailCount) trail.shift();
-    }
     if (k >= 1){ player.y = 0; player.rot = 0; land(); }
   }
-  for (const t of trail) t.life -= dt * LOOK.trailFade; // 잔상은 금방 사라짐
-  trail = trail.filter(t => t.life > 0);
   if (state === 'fall'){
     player.vy += dt * 7;
     player.y += player.vy * dt;
@@ -685,9 +675,8 @@ function drawPillars(dip){
     }
   });
 }
-// 네모 하나 그리기 (찌그러짐 sq·회전 rot 그대로). inner가 있으면 가운데 작은 네모도
 // 네모 하나 그리기 (찌그러짐 sq·회전 rot 그대로 따라감)
-// look.body = 색, look.inner = 가운데 작은 네모 색, look.shine = 왼쪽 위 빛줄기
+// look.body = 색, look.shine = 왼쪽 위 빛줄기
 function drawSquare(sx, groundY, rot, sq, look, alpha){
   const s = F.playerSize * S, w = s * (1 + (1 - sq) * 0.55), h = s * sq;
   ctx.save();
@@ -696,11 +685,6 @@ function drawSquare(sx, groundY, rot, sq, look, alpha){
   ctx.rotate(rot);
   ctx.fillStyle = look.body;
   rrect(-w / 2, -h / 2, w, h, s * 0.2); ctx.fill();
-  if (look.inner){
-    const iw = w * LOOK.innerSize, ih = h * LOOK.innerSize;
-    ctx.fillStyle = look.inner;
-    rrect(-iw / 2, -ih / 2, iw, ih, s * LOOK.innerRound); ctx.fill();
-  }
   if (look.shine){
     // 왼쪽 위 얇은 흰 대각선 빛줄기: 가운데가 가장 밝고 양 끝은 흐려짐. 네모 밖으로 안 나가게 잘라냄
     rrect(-w / 2, -h / 2, w, h, s * 0.2); ctx.clip();
@@ -716,15 +700,8 @@ function drawSquare(sx, groundY, rot, sq, look, alpha){
   ctx.restore();
 }
 function drawPlayer(dip){
-  // 네모 색은 고른 스킨을 따라감 (빨간 선·"완벽!" 같은 다른 빨간색은 그대로)
+  // 네모 색은 고른 스킨을 따라감
   const col = skinColors(currentSkin());
-  // 잔상: 오래된 것일수록 흐리게, 네모 뒤에
-  if (col.trail){
-    trail.forEach((t, i) => {
-      const a = LOOK.trailAlpha * t.life * (i + 1) / trail.length;
-      drawSquare(toX(t.x), GY + t.y * S, t.rot, t.sq, {body: col.trail}, a);
-    });
-  }
   const onGround = state === 'charge' || state === 'idle';
   const sy = GY + (onGround ? dip : 0) + player.y * S;
   const falling = state === 'fall' || state === 'over';
@@ -796,7 +773,10 @@ function draw(){
   }
   ctx.globalAlpha = 1;
   // 떠오르는 글자: 흰색에 옅은 그림자 (어느 하늘에서도 잘 읽히게)
-  for (const p of pops) text(p.text, toX(p.x), toY(p.y), p.big ? S * 0.065 : S * 0.05, '#fff', 800, Math.min(1, p.life * 1.5), true);
+  for (const p of pops){
+    const size = p.faint ? S * 0.045 : p.big ? S * 0.065 : S * 0.05;
+    text(p.text, toX(p.x), toY(p.y), size, '#fff', 800, Math.min(1, p.life * 1.5) * (p.faint ? 0.55 : 1), true);
+  }
   ctx.restore();
 
   // 게임 중 점수: 흰색 큰 숫자 + 옅은 그림자, 아래 작은 글자들도 흰색

@@ -112,10 +112,6 @@ canvas{ display:block; }
 #skins .chip{                /* 스킨 미리보기 네모 */
   position:relative; width:30px; height:30px; border-radius:7px;
 }
-#skins .chip i{              /* 가운데 작은 네모 (inner가 있는 스킨) */
-  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
-  width:45%; height:45%; border-radius:3px;
-}
 #skins .chip b{              /* 은색·골드 스킨의 왼쪽 위 흰 빛줄기 */
   position:absolute; left:14%; top:30%; width:42%; height:2px; border-radius:1px;
   transform:rotate(-45deg); transform-origin:left center;
@@ -182,7 +178,9 @@ canvas{ display:block; }
 #reveal .use{ background:var(--useBg); color:var(--useText); }   /* 바로 쓰기: 꽉 찬 버튼 */
 #reveal .skip{ background:var(--pill); color:var(--text); }      /* 닫기: 반투명 버튼 */
 
-/* 왼쪽 아래 아주 작은 버전 표시 ("판 1") — 폰에 새 파일이 왔는지 확인용 */
+/* 왼쪽 아래 아주 작은 버전 표시 ("판 1") — 평소엔 숨기고, 테스트 모드(?test=숫자)일 때만 보임 */
+#ver{ display:none; }
+#ver.show{ display:block; }
 #ver{
   position:fixed; z-index:2; pointer-events:none;
   left:calc(env(safe-area-inset-left, 0px) + 10px);
