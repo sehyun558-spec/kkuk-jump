@@ -136,6 +136,25 @@ if (TEST){
 const save = (key, value) => { if (!TEST) Store.set(key, value); }; // 테스트 중엔 저장 안 함
 let plays = readNumber('kkuk_plays');  // 플레이 횟수 (한 판 = 1)
 
+// ---------- 별가루 지갑: 별가루를 더하고 빼는 곳은 여기 한 곳뿐 ----------
+// 얻거나 쓰는 즉시 저장 (게임 중에 앱을 꺼도 안 사라짐). 테스트 모드에선 저장 안 하고 임시 개수로 시작.
+// 나중에 광고 보상이나 결제로 줄 때도 Wallet.add(개수), 쓸 때는 Wallet.spend(개수)만 부르면 됩니다.
+// (지금은 광고·결제 없음)
+const SD = SET.stardust;
+let stardust = TEST ? SD.testStart : readNumber('kkuk_stardust');
+const Wallet = {
+  get: () => stardust,
+  add(n){
+    n = Math.max(0, Math.floor(n)); if (!n) return stardust;
+    stardust += n; save('kkuk_stardust', stardust); return stardust;
+  },
+  spend(n){ // 모자라면 쓰지 않고 false
+    n = Math.max(0, Math.floor(n));
+    if (stardust < n) return false;
+    stardust -= n; save('kkuk_stardust', stardust); return true;
+  },
+};
+
 // (예전 스킨 기능은 없앴습니다. 폰에 저장된 예전 스킨 선택 값은 읽지 않고 그냥 무시합니다.)
 
 // ---------- 게임 상태 ----------
@@ -191,6 +210,7 @@ function reset(){
   newBest = false; passedBest = false; startBest = best;
   parts = []; pops = []; rings = []; trail = []; cubeFlash = 0;
   gotThisGame = []; flash = null; slowT = Infinity;
+  resetStardustFx();
   wideIn = randInt(R.everyMin, R.everyMax);
   bgReturn = true; // 하늘을 첫 테마로 (resetTime초에 걸쳐)
   made = 0;
@@ -278,7 +298,13 @@ addEventListener('blur', cancelCharge);
 
 // ---------- 점수 ----------
 function addScore(gain){
+  const before = score;
   score += gain;
+  // 별가루: 점수가 every의 배수(5, 10, 15…)를 넘을 때마다 1개 (한 번에 여러 배수를 넘으면 넘은 만큼)
+  if (SD.every > 0){
+    const k = Math.floor(score / SD.every) - Math.floor(before / SD.every);
+    if (k > 0) gainStardust(k);
+  }
   if (score > best){
     // 게임 중 기록을 넘는 순간 "신기록!" (첫 기록일 땐 안 띄움)
     if (startBest > 0 && !passedBest){
@@ -337,6 +363,7 @@ function land(){
     if (j === cur + 1 && dist <= JD.perfectLine / 2 + JD.perfectMargin){
       // 완벽! — 콤보가 쌓일수록 점수·음·흔들림·조각이 커짐
       combo++; gain = 1 + Math.min(combo, JD.maxBonus);
+      if (SD.perfectBonus > 0 && combo === SD.perfectBonusAt) gainStardust(SD.perfectBonus); // PERFECT 연속 보너스
       player.x = center;
       burst(center, [EF.sparkColor, pillarColor(n)], FX.burstBase + combo * FX.burstPerCombo); // 흰색 + 그 기둥 색
       rings.push({x: center, r: F.playerSize * 0.6, life: 1});
@@ -529,7 +556,7 @@ function splitRuns(t){
   if (buf) out.push({s: buf, ko});
   return out;
 }
-function text(t, x, y, size, col, weight = UI.weight, alpha = 1, shadow = false, track = null){
+function text(t, x, y, size, col, weight = UI.weight, alpha = 1, shadow = false, track = null, left = false){
   ctx.globalAlpha = alpha; ctx.fillStyle = col;
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   const parts = splitRuns(t).map(r => {
@@ -544,7 +571,7 @@ function text(t, x, y, size, col, weight = UI.weight, alpha = 1, shadow = false,
   });
   const last = parts[parts.length - 1];
   const total = parts.reduce((a, p) => a + p.w, 0) - (last && last.sp ? last.sp : 0);
-  let cx = x - total / 2;
+  let cx = left ? x : x - total / 2; // left = true 이면 x에서 오른쪽으로
   const base = y + size * 0.36; // y = 글자 가운데 높이
   if (shadow){
     ctx.shadowColor = (darkMode ? UI.dark : UI.light).shadow;
@@ -733,6 +760,7 @@ function draw(){
   for (const p of pops) if (!HANGUL.test(p.text)) drawPop(p); // 영어 글자는 화면과 함께 흔들림
   ctx.restore();
   for (const p of pops) if (HANGUL.test(p.text)) drawPop(p);  // 한국어 글자는 흔들리지 않게
+  drawStarFx();  // 별가루: 모여서 별이 되어 왼쪽 위로 날아감
 
   // 게임 중 점수: 흰색 큰 숫자(Quicksand 굵게) + 옅은 그림자, 아래 BEST·COMBO
   const Z = UI.size;
@@ -773,6 +801,110 @@ function draw(){
     }
     text(T.retry, W / 2, H * 0.72, Z.retry, '#fff', 400, t * 0.9, true); // 한국어: 깜빡임 없이 차분하게
   }
+  drawStardustHud(); // 왼쪽 위 "✦ 숫자" (게임 오버 막보다 위에)
+}
+
+// ---------- 별가루 얻는 연출 ----------
+// 빛 먼지 몇 개가 네모 쪽으로 모여 작은 별이 되고 → 왼쪽 위로 날아감 → 도착하면 숫자가 1 올라감
+const SDC = TH.stardust;                       // 별가루 빛 색 (테마마다)
+let gameStardust = 0;                          // 이번 판에 얻은 개수
+let shownStardust = stardust;                  // 왼쪽 위에 보이는 숫자 (별이 도착할 때 올라감)
+let starFx = [];                               // 날아가는 별들
+let hudT = 0, hudPulse = 0;                    // 게임 중 숫자가 보이는 남은 시간 / 도착할 때 톡 커지는 정도
+function resetStardustFx(){
+  for (const f of starFx) releaseMotes(f);
+  starFx = []; gameStardust = 0; shownStardust = stardust; hudT = 0; hudPulse = 0;
+}
+function gainStardust(n){
+  Wallet.add(n);                               // 얻는 즉시 저장
+  gameStardust += n;
+  const wait = starFx.length ? Math.max(0, -starFx[starFx.length - 1].t) + SD.gap : 0;
+  for (let i = 0; i < n; i++) starFx.push({t: -(wait + i * SD.gap)}); // 여러 개면 조금씩 시간 차
+}
+const hudPos = () => ({x: 18, y: 30});         // 왼쪽 위 별 아이콘 자리 (화면 픽셀)
+const cubeCenter = () => ({x: toX(player.x), y: GY + player.y * S - F.playerSize * S * player.sq / 2});
+function releaseMotes(f){
+  if (!f.motes) return;
+  for (const o of f.motes){ o.m.held = false; Object.assign(o.m, newMote(H + 10)); }
+  f.motes = null;
+}
+function updateStarFx(dt){
+  for (const f of starFx){
+    f.t += dt;
+    if (f.t < 0) continue;
+    if (!f.started){ // 시작: 네모와 가까운 빛 먼지를 골라 끌어옴
+      f.started = true;
+      const c = cubeCenter(); f.cx = c.x; f.cy = c.y;
+      f.motes = dust.filter(m => !m.held)
+        .sort((a, b) => Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b.x - c.x, b.y - c.y))
+        .slice(0, SD.gatherCount).map(m => { m.held = true; return {m, x: m.x, y: m.y}; });
+    }
+    const g = f.t / SD.gatherTime;
+    if (g < 1 && f.motes){
+      const e = g * g * (3 - 2 * g);
+      for (const o of f.motes){ o.m.x = o.x + (f.cx - o.x) * e; o.m.y = o.y + (f.cy - o.y) * e; }
+    } else if (!f.formed){ // 별이 됨: 맑고 짧은 소리 + 아주 짧은 진동, 왼쪽 위 숫자 나타남
+      f.formed = true; releaseMotes(f);
+      Sound.tone(1976, 0.12, 'sine', 0.06);
+      Sound.buzz(6);
+      hudT = SD.flyTime + SD.showTime;
+    }
+    if (f.formed && !f.done && f.t >= SD.gatherTime + SD.flyTime){ // 도착: 숫자 1 올라감
+      f.done = true; shownStardust = Math.min(stardust, shownStardust + 1); hudPulse = 1;
+    }
+  }
+  starFx = starFx.filter(f => !f.done);
+  if (hudT > 0) hudT -= dt;
+  hudPulse = Math.max(0, hudPulse - dt * 4);
+}
+// 네 갈래 별 ✦ (가운데가 오목한 반짝이 별). 그림 파일 없이 선으로 그림
+function starPath(x, y, r){
+  const k = r * 0.18; // 가운데 오목한 정도
+  ctx.beginPath();
+  ctx.moveTo(x, y - r);
+  ctx.quadraticCurveTo(x + k, y - k, x + r, y);
+  ctx.quadraticCurveTo(x + k, y + k, x, y + r);
+  ctx.quadraticCurveTo(x - k, y + k, x - r, y);
+  ctx.quadraticCurveTo(x - k, y - k, x, y - r);
+  ctx.closePath();
+}
+function drawStar(x, y, r, alpha){
+  const c = darkMode ? SDC.dark : SDC.light, gs = r * SDC.glowSize;
+  ctx.globalAlpha = alpha * SDC.glowAlpha;
+  ctx.drawImage(sprite('glow', c.glow), x - gs / 2, y - gs / 2, gs, gs);
+  ctx.globalAlpha = alpha; ctx.fillStyle = c.star;
+  starPath(x, y, r); ctx.fill();
+  ctx.globalAlpha = 1;
+}
+function drawStarFx(){
+  const hp = hudPos();
+  for (const f of starFx){
+    if (!f.started) continue;
+    const g = f.t / SD.gatherTime;
+    if (g < 1){ // 모여드는 끝 무렵 별이 생겨남
+      if (g > 0.55) drawStar(f.cx, f.cy, SD.starSize * (g - 0.55) / 0.45, (g - 0.55) / 0.45);
+      continue;
+    }
+    const k = Math.min(1, (f.t - SD.gatherTime) / SD.flyTime), e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    const x = f.cx + (hp.x - f.cx) * e, y = f.cy + (hp.y - f.cy) * e - Math.sin(k * Math.PI) * 40; // 살짝 위로 휘며 날아감
+    drawStar(x, y, SD.starSize * (1 - 0.35 * k), 1);
+  }
+}
+// 왼쪽 위 "✦ 숫자": 첫 화면·게임 오버에선 늘 보이고, 게임 중엔 얻는 순간만 잠깐
+function drawStardustHud(){
+  let a;
+  if (state === 'ready') a = 1;
+  else if (state === 'over') a = Math.min((now() - overAt) / 300, 1);
+  else a = Math.max(0, Math.min(1, hudT / 0.3, (SD.flyTime + SD.showTime - hudT) / 0.2));
+  if (a <= 0.01) return;
+  const hp = hudPos(), r = SD.iconSize * (1 + hudPulse * 0.35);
+  drawStar(hp.x, hp.y, r, a);
+  text(String(shownStardust), hp.x + SD.iconSize + 8, hp.y, SD.textSize * (1 + hudPulse * 0.12), '#fff', UI.weightBig, a, true, 0, true);
+  if (state === 'over' && gameStardust > 0){ // 게임 오버: 이번 판에 얻은 개수
+    ctx.font = UI.weightBig + ' ' + SD.textSize + 'px ' + FONT_EN + SYS_FONT;
+    const w = ctx.measureText(String(shownStardust)).width;
+    text(fmt(T.stardustGain, gameStardust), hp.x + SD.iconSize + 14 + w, hp.y, SD.textSize - 3, '#fff', UI.weight, a * 0.7, true, 0, true);
+  }
 }
 
 // ---------- 빛 먼지 ----------
@@ -796,6 +928,7 @@ function newMote(y){
 function updateDust(dt){
   if (dust.length !== DU.count) makeDust();
   for (const m of dust){
+    if (m.held) continue; // 별가루가 되려고 모여드는 중인 먼지는 따로 움직임
     m.y -= m.sp * dt; m.ph += dt * 0.6;
     if (m.y < -10){ Object.assign(m, newMote(H + 10)); }
   }
@@ -805,11 +938,11 @@ function drawDust(){
   const img = sprite('glow', star ? '235,235,255' : '255,255,255');
   const t = now() / 1000;
   for (const m of dust){
-    const x = m.x + Math.sin(m.ph) * DU.sway;
+    const x = m.held ? m.x : m.x + Math.sin(m.ph) * DU.sway;
     // 다크 모드: 별처럼 천천히 반짝임
     const tw = star ? 0.55 + 0.45 * Math.sin(t * DU.twinkle + m.ph * 3) : 1;
     const sz = m.size * (star ? 0.8 : 1) * 2.6;               // 번지는 빛 포함 크기
-    ctx.globalAlpha = m.a * tw;
+    ctx.globalAlpha = Math.min(1, m.a * tw * (m.held ? 1.8 : 1)); // 모여드는 먼지는 조금 더 밝게
     ctx.drawImage(img, x - sz / 2, m.y - sz / 2, sz, sz);
   }
   ctx.globalAlpha = 1;
@@ -856,7 +989,7 @@ function loop(t){
     speed = UF.slowScale + (1 - UF.slowScale) * k * k;
     slowT += dt;
   }
-  update(dt * speed); updateBg(dt); updateDust(dt); draw();
+  update(dt * speed); updateBg(dt); updateDust(dt); updateStarFx(dt); draw();
   drawFlash(dt);
   requestAnimationFrame(loop);
 }
