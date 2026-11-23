@@ -34,36 +34,48 @@ function pickColors(){
 }
 pickColors();
 
-// ---------- 점수에 따라 바뀌는 배경색 ----------
-// 화면 바탕·게임 오버 막·버튼과 창의 바탕이 모두 이 색을 따라감
-const BG = SET.bgShift;
-let bgNow = null, bgReturn = false;  // 지금 배경색 [빨,초,파] / 처음 색으로 돌아가는 중인지
+// ---------- 하늘 (배경 그라데이션 테마) ----------
+// 위에서 아래로 두 파스텔 색이 섞인 하늘. 점수가 오르면 다음 테마로 아주 천천히 넘어감
+const SKY = SET.sky;
+let skyTop = null, skyBot = null;    // 지금 하늘의 위·아래 색 [빨,초,파]
+let bgReturn = false;                // 다시 시작해서 첫 테마로 돌아가는 중인지
 let bgCss = C.bg, bgVeil = C.veil, bgLastCss = '';
+let skyGrad = null, skyGradKey = ''; // 그라데이션은 색이 바뀔 때만 새로 만듦 (가볍게)
 const hexRgb = h => { h = h.replace('#', ''); return [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16)); };
+const rgbStr = c => 'rgb(' + c.map(Math.round).join(',') + ')';
 const veilAlpha = () => { const m = /,\s*([\d.]+)\s*\)\s*$/.exec(C.veil); return m ? +m[1] : 0.9; };
-// 지금 점수에 맞는 목표 색: 0~9점은 미색(bg), 10점부터 목록 차례로, 끝나면 처음부터 다시
-function bgTarget(){
-  const list = darkMode ? BG.dark : BG.light;
-  const n = BG.every > 0 ? Math.floor(Math.max(0, score) / BG.every) : 0;
-  if (n === 0 || !list || !list.length) return C.bg;
-  return list[(n - 1) % list.length];
+// 지금 점수에 맞는 테마: every점마다 다음 테마, 마지막 다음엔 처음부터 다시
+function skyTheme(){
+  const list = darkMode ? SKY.dark : SKY.light;
+  const n = SKY.every > 0 ? Math.floor(Math.max(0, score) / SKY.every) : 0;
+  return list[n % list.length];
 }
 function updateBg(dt){
-  const t = hexRgb(bgTarget());
-  if (!bgNow || bgSnap){ bgNow = t.slice(); bgSnap = false; }
+  const th = skyTheme(), tTop = hexRgb(th.top), tBot = hexRgb(th.bottom);
+  if (!skyTop || bgSnap){ skyTop = tTop.slice(); skyBot = tBot.slice(); bgSnap = false; }
   else {
-    const time = bgReturn ? BG.resetTime : BG.fadeTime;
+    const time = bgReturn ? SKY.resetTime : SKY.fadeTime;
     const k = Math.min(1, dt * 3 / Math.max(0.05, time)); // time초쯤이면 거의 다 넘어감
     let far = 0;
-    for (let i = 0; i < 3; i++){ bgNow[i] += (t[i] - bgNow[i]) * k; far = Math.max(far, Math.abs(t[i] - bgNow[i])); }
+    for (let i = 0; i < 3; i++){
+      skyTop[i] += (tTop[i] - skyTop[i]) * k; skyBot[i] += (tBot[i] - skyBot[i]) * k;
+      far = Math.max(far, Math.abs(tTop[i] - skyTop[i]), Math.abs(tBot[i] - skyBot[i]));
+    }
     if (far < 1) bgReturn = false;
   }
-  const [r, g, b] = bgNow.map(Math.round);
-  bgCss = 'rgb(' + r + ',' + g + ',' + b + ')';
-  bgVeil = 'rgba(' + r + ',' + g + ',' + b + ',' + veilAlpha() + ')';
-  if (bgCss !== bgLastCss){ // 색이 바뀔 때만 버튼·창 바탕도 바꿈
+  const mid = [0, 1, 2].map(i => (skyTop[i] + skyBot[i]) / 2);
+  bgCss = rgbStr(mid);                                             // 버튼·창 바탕용 (가운데 색)
+  bgVeil = 'rgba(' + mid.map(Math.round).join(',') + ',' + veilAlpha() + ')';
+  const key = rgbStr(skyTop) + rgbStr(skyBot) + H;
+  if (key !== skyGradKey){
+    skyGradKey = key;
+    skyGrad = ctx.createLinearGradient(0, 0, 0, H);
+    skyGrad.addColorStop(0, rgbStr(skyTop));
+    skyGrad.addColorStop(1, rgbStr(skyBot));
+  }
+  if (bgCss !== bgLastCss){ // 색이 바뀔 때만 화면 바깥 바탕·버튼·창 바탕도 바꿈
     bgLastCss = bgCss;
-    document.body.style.background = bgCss;
+    document.body.style.background = 'linear-gradient(' + rgbStr(skyTop) + ',' + rgbStr(skyBot) + ') fixed';
     document.documentElement.style.setProperty('--bg', bgCss);
   }
 }
@@ -245,7 +257,7 @@ function reset(){
   parts = []; pops = []; rings = []; trail = []; ripples = []; announced = {};
   gotThisGame = []; flash = null; slowT = Infinity;
   wideIn = randInt(R.everyMin, R.everyMax);
-  bgReturn = true; // 배경색을 처음 색으로 (resetTime초에 걸쳐)
+  bgReturn = true; // 하늘을 첫 테마로 (resetTime초에 걸쳐)
   made = 0;
   pillars = [{x: 0, w: P.firstWidth}];
   fillAhead();
@@ -642,7 +654,7 @@ function drawPlayer(dip){
   drawSquare(toX(player.x), sy, player.rot, player.sq, col, 1);
 }
 function draw(){
-  ctx.fillStyle = bgCss; ctx.fillRect(0, 0, W, H); // 점수에 따라 바뀌는 배경색
+  ctx.fillStyle = skyGrad || bgCss; ctx.fillRect(0, 0, W, H); // 하늘 그라데이션
   ctx.save();
   if (shake > 0.3) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
 
