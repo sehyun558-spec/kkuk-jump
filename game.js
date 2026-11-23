@@ -214,7 +214,7 @@ function burst(x, cols, n){
   }
 }
 // 떠오르는 글자 (y는 기둥 윗면에서 위로 얼마나, 기준 크기 단위)
-// big = 큰 글자, faint = 흐리고 작게 (예: "콤보 5 끝")
+// big = 큰 글자, faint = 흐리고 작게 아래로 사라짐 (지금은 쓰는 곳 없음)
 function pop(text, x, y, big, faint = false){ pops.push({text, x, y, big, faint, life: 1}); }
 
 // ---------- 입력 ----------
@@ -330,10 +330,9 @@ function land(){
 
   if (j > 0){
     const n = pillars[j];
-    // 봐준 착지면 네모를 기둥 끝으로 살짝 당김 (그러면 "아슬아슬!"이 뜸)
+    // 봐준 착지면 네모를 기둥 끝으로 살짝 당김
     px = player.x = Math.min(Math.max(px, n.x), n.x + n.w);
     const center = n.x + n.w / 2, dist = Math.abs(px - center);
-    const edge = Math.min(px - n.x, n.x + n.w - px);
     let gain = 1;
     if (j === cur + 1 && dist <= JD.perfectLine / 2 + JD.perfectMargin){
       // 완벽! — 콤보가 쌓일수록 점수·음·흔들림·조각이 커짐
@@ -348,15 +347,12 @@ function land(){
       pop(combo > 1 ? fmt(T.perfectCombo, combo) : T.perfect, center, -F.playerSize * 3.3, true);
     } else {
       // 보통 착지 (기둥을 건너뛴 착지도 1점, 콤보는 끊김)
-      // 완벽 콤보가 comboEndMin 이상 쌓였다가 끊기면 "COMBO ○"를 흐리게 띄워 아래로 사라지게
-      if (combo >= SET.alert.comboEndMin) pop(fmt(T.comboEnd, combo), px, -F.playerSize * 4.4, false, true);
       combo = 0;
       burst(px, ['rgba(255,255,255,0.85)'], 6);
       Sound.tone(330, 0.07, 'sine', 0.07); Sound.buzz(8);
-      if (edge < JD.closeEdge) pop(T.close, px, -F.playerSize * 3.3, true);
     }
     addScore(gain);
-    pop('+' + gain, player.x, -F.playerSize * 2.2, false);
+    if (gain > 1) pop('+' + gain, player.x, -F.playerSize * 2.2, false); // 점수 표시는 PERFECT 때만
     cur = j;
     fillAhead();
     while (cur > 3){ pillars.shift(); cur--; } // 지나간 기둥 정리
@@ -365,14 +361,13 @@ function land(){
     return;
   }
 
-  // 실패: 가장 가까운 기둥 끝 찾기
+  // 실패: 가장 가까운 기둥 쪽으로 떨어지는 방향 정하기
   let near = Infinity, np = pillars[cur + 1];
   for (let i = cur + 1; i < pillars.length; i++){
     const p = pillars[i];
     const d = Math.min(Math.abs(px - p.x), Math.abs(px - (p.x + p.w)));
     if (d < near){ near = d; np = p; }
   }
-  if (near - JD.edgeForgive < JD.missNear) pop(T.miss, px, -F.playerSize * 3, true);
   player.dir = px < np.x ? -1 : 1;
   player.vy = 0; state = 'fall'; fallAt = now();
   shake = FX.shakeFail; Sound.buzz([30, 40, 70]);
@@ -737,7 +732,7 @@ function draw(){
   };
   for (const p of pops) if (!HANGUL.test(p.text)) drawPop(p); // 영어 글자는 화면과 함께 흔들림
   ctx.restore();
-  for (const p of pops) if (HANGUL.test(p.text)) drawPop(p);  // 한국어 글자("아슬아슬!" 등)는 흔들리지 않게
+  for (const p of pops) if (HANGUL.test(p.text)) drawPop(p);  // 한국어 글자는 흔들리지 않게
 
   // 게임 중 점수: 흰색 큰 숫자(Quicksand 굵게) + 옅은 그림자, 아래 BEST·COMBO
   const Z = UI.size;
