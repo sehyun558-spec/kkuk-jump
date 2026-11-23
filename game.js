@@ -16,6 +16,7 @@ const now = () => performance.now();
 
 // ---------- 색 (밝은/어두운 화면) ----------
 let C, darkMode = false;
+let bgSnap = true;      // 다크 모드가 바뀌면 배경색을 바로 맞춤 (천천히 넘어가지 않고)
 let skinsReady = false; // 스킨 버튼이 만들어진 뒤에야 색을 다시 칠함
 const darkQuery = matchMedia('(prefers-color-scheme: dark)');
 function pickColors(){
@@ -29,8 +30,43 @@ function pickColors(){
   st.setProperty('--bg', C.bg); st.setProperty('--ink', C.ink);
   st.setProperty('--sub', C.sub); st.setProperty('--accent', C.accent);
   document.body.style.background = C.bg;
+  bgSnap = true;
 }
 pickColors();
+
+// ---------- 점수에 따라 바뀌는 배경색 ----------
+// 화면 바탕·게임 오버 막·버튼과 창의 바탕이 모두 이 색을 따라감
+const BG = SET.bgShift;
+let bgNow = null, bgReturn = false;  // 지금 배경색 [빨,초,파] / 처음 색으로 돌아가는 중인지
+let bgCss = C.bg, bgVeil = C.veil, bgLastCss = '';
+const hexRgb = h => { h = h.replace('#', ''); return [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16)); };
+const veilAlpha = () => { const m = /,\s*([\d.]+)\s*\)\s*$/.exec(C.veil); return m ? +m[1] : 0.9; };
+// 지금 점수에 맞는 목표 색: 0~9점은 미색(bg), 10점부터 목록 차례로, 끝나면 처음부터 다시
+function bgTarget(){
+  const list = darkMode ? BG.dark : BG.light;
+  const n = BG.every > 0 ? Math.floor(Math.max(0, score) / BG.every) : 0;
+  if (n === 0 || !list || !list.length) return C.bg;
+  return list[(n - 1) % list.length];
+}
+function updateBg(dt){
+  const t = hexRgb(bgTarget());
+  if (!bgNow || bgSnap){ bgNow = t.slice(); bgSnap = false; }
+  else {
+    const time = bgReturn ? BG.resetTime : BG.fadeTime;
+    const k = Math.min(1, dt * 3 / Math.max(0.05, time)); // time초쯤이면 거의 다 넘어감
+    let far = 0;
+    for (let i = 0; i < 3; i++){ bgNow[i] += (t[i] - bgNow[i]) * k; far = Math.max(far, Math.abs(t[i] - bgNow[i])); }
+    if (far < 1) bgReturn = false;
+  }
+  const [r, g, b] = bgNow.map(Math.round);
+  bgCss = 'rgb(' + r + ',' + g + ',' + b + ')';
+  bgVeil = 'rgba(' + r + ',' + g + ',' + b + ',' + veilAlpha() + ')';
+  if (bgCss !== bgLastCss){ // 색이 바뀔 때만 버튼·창 바탕도 바꿈
+    bgLastCss = bgCss;
+    document.body.style.background = bgCss;
+    document.documentElement.style.setProperty('--bg', bgCss);
+  }
+}
 darkQuery.addEventListener?.('change', pickColors);
 new MutationObserver(pickColors).observe(document.documentElement, {attributes: true, attributeFilter: ['data-theme']});
 
@@ -209,6 +245,7 @@ function reset(){
   parts = []; pops = []; rings = []; trail = []; ripples = []; announced = {};
   gotThisGame = []; flash = null; slowT = Infinity;
   wideIn = randInt(R.everyMin, R.everyMax);
+  bgReturn = true; // 배경색을 처음 색으로 (resetTime초에 걸쳐)
   made = 0;
   pillars = [{x: 0, w: P.firstWidth}];
   fillAhead();
@@ -605,7 +642,7 @@ function drawPlayer(dip){
   drawSquare(toX(player.x), sy, player.rot, player.sq, col, 1);
 }
 function draw(){
-  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = bgCss; ctx.fillRect(0, 0, W, H); // 점수에 따라 바뀌는 배경색
   ctx.save();
   if (shake > 0.3) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
 
@@ -660,7 +697,7 @@ function draw(){
   // 게임 오버 화면
   if (state === 'over'){
     const t = Math.min((now() - overAt) / 250, 1);
-    ctx.globalAlpha = t; ctx.fillStyle = C.veil; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1;
+    ctx.globalAlpha = t; ctx.fillStyle = bgVeil; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1;
     const cy = H * 0.36;
     text('점수', W / 2, cy - 70, 16, C.sub, 600, t);
     text(String(score), W / 2, cy, Math.min(S * 0.26, 120), C.ink, 900, t);
@@ -703,7 +740,7 @@ function loop(t){
     speed = UF.slowScale + (1 - UF.slowScale) * k * k;
     slowT += dt;
   }
-  update(dt * speed); draw();
+  update(dt * speed); updateBg(dt); draw();
   drawFlash(dt);
   // "스킨" 버튼은 첫 화면·게임 오버 화면에서만 보임
   const showSkinBtn = state === 'ready' || state === 'over';
