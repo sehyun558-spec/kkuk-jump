@@ -112,8 +112,8 @@ function updateBg(dt){
   }
   if (bgCss !== bgLastCss){ // 색이 바뀔 때만 화면 바깥 바탕·버튼·창 바탕도 바꿈
     bgLastCss = bgCss;
-    document.body.style.background = TH.night // 넓은 화면에서 게임 칸 바깥 바탕 (밤바다는 아래가 밤안개처럼 어둡게)
-      ? 'linear-gradient(' + rgbStr(skyTop) + ',' + rgbStr(skyBot) + ' 62%,' + TH.night.fogColor + ' 85%) fixed'
+    document.body.style.background = (TH.night || TH.cosmos) // 넓은 화면에서 게임 칸 바깥 바탕 (밤바다·우주는 아래가 어둡게)
+      ? 'linear-gradient(' + rgbStr(skyTop) + ',' + rgbStr(skyBot) + ' 62%,' + (TH.night || TH.cosmos).fogColor + ' 85%) fixed'
       : 'linear-gradient(' + rgbStr(skyTop) + ',' + rgbStr(skyBot) + ') fixed';
     document.documentElement.style.setProperty('--bg', bgCss);
   }
@@ -639,7 +639,6 @@ let plBase = null; // 이번 화면의 기둥 기본 색 (조각 색에도 씀)
 // 기둥 하나의 색 (그 기둥 번호에 맞게 흘러간 색)
 function pillarColor(p, a = 1){
   if (!plBase || p.id === undefined) return 'rgba(255,255,255,' + a + ')';
-  if (TH.cosmos) return cosRgba(EF.sparkColor, a); // 우주: 발판이 어두워서 튀는 조각은 밝은 별가루 색으로
   return hsl(plBase.bh + Math.sin(p.id * PL.hueStep) * PL.hueRange, plBase.baseS, plBase.baseL, a);
 }
 function drawPillars(dip){
@@ -658,8 +657,7 @@ function drawPillars(dip){
     const d = i === cur ? dip : 0; // 서 있는 발판만 눌림
     const h = bh + Math.sin(p.id * PL.hueStep) * PL.hueRange; // 기둥마다 색이 조금씩 흘러감
     const top = GY + d;
-    if (TH.cosmos) drawCosmosPlatform(sx, w, top, h, baseS, baseL, p.id); // 우주: 공중에 떠 있는 발판
-    else if (TH.night) drawNightPillar(sx, w, top, h, baseS, baseL); // 밤바다: 어두운 남색 돌기둥
+    if (fixedCol) drawNightPillar(sx, w, top, h, baseS, baseL); // 밤바다: 어두운 남색 / 우주: 남보라 기둥
     else {
     // 몸통: 위는 기둥 색 → 아래로 살짝 어두워지면서 안개 속으로 투명해짐
     const g = ctx.createLinearGradient(0, top, 0, fogBot);
@@ -686,12 +684,6 @@ function drawPillars(dip){
       ctx.restore();
       ctx.fillStyle = 'rgba(' + lc + ',0.95)';
       ctx.fillRect(cx - lw / 2, top, lw, lh);
-      if (PL.neon){ // 우주: 네온처럼 또렷하게 (밝은 번짐 한 겹 더 + 가운데 흰 심)
-        ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.8;
-        ctx.drawImage(sprite('glow', PL.lineColor), cx - lw * 0.9, top - gh * 0.7, lw * 1.8, gh * 1.4);
-        ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
-        ctx.fillStyle = '#FFFFFF'; ctx.fillRect(cx - lw * 0.4, top + lh * 0.25, lw * 0.8, Math.max(1, lh * 0.5));
-      }
     }
   });
 }
@@ -784,8 +776,7 @@ function draw(){
   const dip = state === 'charge' ? (charge / J.maxPower) * F.padDip * S : 0;
   const falling = state === 'fall' || state === 'over';
   if (falling){ drawPlayer(dip); drawPillars(dip); } else { drawPillars(dip); drawPlayer(dip); }
-  if (TH.night) drawNightFog(); // 밤바다: 아래쪽 밤안개 (기둥·바다·떨어진 네모가 함께 사라짐)
-  if (TH.cosmos) drawCosmosFx(); // 우주: 별가루 꼬리·착지 반짝임
+  if (TH.night || TH.cosmos) drawNightFog(); // 밤바다·우주: 아래쪽 어둠 (기둥과 떨어진 네모가 함께 사라짐)
 
   for (const r of rings){
     ctx.globalAlpha = Math.max(r.life, 0) * 0.85; ctx.strokeStyle = EF.ringColor; ctx.lineWidth = 1.5; // 착지 고리
@@ -1088,7 +1079,7 @@ function drawNightPillar(sx, w, top, hue, S0, L0){
 }
 // 밤안개: 화면 아래쪽을 짙은 밤 색으로 부드럽게 덮어 기둥과 바다(와 떨어진 네모)가 함께 사라지게
 function drawNightFog(){
-  const N = TH.night, a = GY + (H - GY) * N.fogStart, b = GY + (H - GY) * N.fogEnd;
+  const N = TH.night || TH.cosmos, a = GY + (H - GY) * N.fogStart, b = GY + (H - GY) * N.fogEnd;
   const g = ctx.createLinearGradient(0, a, 0, b);
   g.addColorStop(0, nightRgba(N.fogColor, 0)); g.addColorStop(0.55, nightRgba(N.fogColor, 0.7)); g.addColorStop(1, nightRgba(N.fogColor, 1));
   ctx.fillStyle = g; ctx.fillRect(-40, a, W + 80, b - a);
@@ -1112,92 +1103,75 @@ function drawNightPreview(c, w, h, t, sk){
 
 // =====================================================================
 //  우주 그리기 (테마에 cosmos 묶음이 있을 때만 쓰임. 꿈·밤바다는 이 부분을 지나가지 않음)
-//  뒤에서 앞으로: 남색→보라 바탕·성운·행성·달(그림 한 장) → 별 3겹(캐릭터 따라 천천히 흐름) → 별똥별
-//               → 떠 있는 발판·추진기 불빛 → 네모 + 별가루 꼬리·착지 반짝임
+//  기둥·네모·글자는 다른 테마와 같은 모양이고, 여기서는 배경만 그림:
+//  남색→보라 바탕·흐린 성운·작은 점 별·얇은 선 행성(그림 한 장) → 반짝이는 별 몇 개 → 가끔 별똥별
 // =====================================================================
-// 정해진 순서로 나오는 "가짜 무작위" (별 자리를 늘 같게, 게임의 무작위 순서는 건드리지 않음)
-function cosRand(seed){ let s = seed; return () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; }; }
 const cosRgba = (hex, a) => 'rgba(' + hexRgb(hex).join(',') + ',' + a + ')';
-const cosR = cosRand(4242);
-let cosStars = null;  // 별 3겹 자리 (처음 한 번만 정함)
-function makeCosStars(C){
-  const r = cosRand(91);
-  cosStars = C.layers.map((L, li) => Array.from({length: L.count}, () => ({
-    fx: r(), fy: r(), s: L.size * (0.6 + r() * 0.8), a: L.alpha * (0.5 + r() * 0.5),
-    col: C.starColors[Math.floor(r() * C.starColors.length)], tw: r() < C.twinkle, ph: r() * 6.28, li,
-  })));
+function cosRand(seed){ let s = seed; return () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; }; }
+const cosR = cosRand(4242); // 별똥별 자리·간격용 (게임의 무작위 순서는 건드리지 않음)
+// 행성 자리: 오른쪽 위 버튼 바로 아래 (밤바다의 달 자리와 같은 방식)
+function cosPlanet(C, w, s, uiBottom){
+  const r = C.planetSize * s, rr = r * C.ringSize;
+  return {x: w - C.planetRight - rr, y: uiBottom + C.planetBelow + r, r, rr};
 }
-// 바탕 그림: 남색→보라 그라데이션, 성운, 큰 행성(빛 받는 쪽 밝게, 비스듬한 고리, 은은한 빛), 작은 달
-function paintCosmos(c, t, w, h, s, uiBottom, small){
+// 바탕 그림: 그라데이션 + 아주 흐린 성운 + 작은 점 별(반짝이는 별은 빼고) + 얇은 선 행성
+function paintCosmos(c, t, w, h, s, uiBottom, gy, small){
   const C = t.cosmos, sk = t.sky.light[0];
   let g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, sk.top); g.addColorStop(1, sk.bottom);
   c.fillStyle = g; c.fillRect(0, 0, w, h);
-  for (const n of C.nebulae){ // 성운: 윤곽 없이 뿌옇게
+  for (const n of C.nebulae){
     const x = n.x * w, y = n.y * h, r = n.r * s;
     g = c.createRadialGradient(x, y, 0, x, y, r);
-    g.addColorStop(0, cosRgba(n.color, C.nebulaAlpha)); g.addColorStop(0.5, cosRgba(n.color, C.nebulaAlpha * 0.4)); g.addColorStop(1, cosRgba(n.color, 0));
+    g.addColorStop(0, cosRgba(n.color, C.nebulaAlpha)); g.addColorStop(1, cosRgba(n.color, 0));
     c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2);
   }
-  // 작은 달 (왼쪽 멀리)
-  const mr = Math.max(small ? 2 : 3, C.moonSize * s), mx = C.moonX * w, my = C.moonY * h;
-  g = c.createRadialGradient(mx - mr * 0.4, my - mr * 0.4, 0, mx, my, mr);
-  g.addColorStop(0, C.moonColor); g.addColorStop(1, cosRgba(C.moonColor, 0.25));
-  c.fillStyle = g; c.beginPath(); c.arc(mx, my, mr, 0, Math.PI * 2); c.fill();
-  // 큰 행성 (오른쪽 위, 일부는 화면 밖)
-  // 행성 크기: 제목·점수 오른쪽 끝과 겹치지 않는 만큼만 (작은 폰에서는 알아서 작아짐)
-  const textRight = small ? w : w / 2 + Math.min(s * 0.17, t.ui.size.title) * 1.6 + 12;
-  const pr = Math.min(C.planetSize * s, (w - textRight) / (1 + C.planetX) || C.planetSize * s), px = w - pr * C.planetX, py = uiBottom + C.planetBelow + pr;
-  const rr = pr * C.ringSize;
-  g = c.createRadialGradient(px, py, pr, px, py, pr * 2); // 은은한 빛 번짐
-  g.addColorStop(0, cosRgba(C.planetLight, C.planetGlow)); g.addColorStop(1, cosRgba(C.planetLight, 0));
-  c.fillStyle = g; c.fillRect(px - pr * 2, py - pr * 2, pr * 4, pr * 4);
-  const ring = (back) => { // 고리: 뒤쪽 반은 행성 뒤에, 앞쪽 반은 행성 앞에
-    c.save(); c.translate(px, py); c.rotate(C.ringTilt); c.scale(1, 0.28);
-    c.strokeStyle = cosRgba(C.ringColor, C.ringAlpha * (back ? 0.6 : 1));
-    for (const [k, lw] of [[1, small ? 1.5 : 3.5], [0.86, small ? 0.8 : 1.5]]){
-      c.lineWidth = lw / 0.28 * 0.35; c.beginPath(); c.arc(0, 0, rr * k, back ? Math.PI : 0, back ? Math.PI * 2 : Math.PI); c.stroke();
-    }
-    c.restore();
+  const P = small ? {x: w * 0.76, y: h * 0.24, r: 6, rr: 6 * C.ringSize} : cosPlanet(C, w, s, uiBottom);
+  if (!small){
+    c.fillStyle = '#FFFFFF';
+    nightStars(C.stars, w, h, gy - s * 0.35, P.x, P.y, P.rr * 0.5).forEach((st, i) => {
+      if (i < C.twinkle) return;
+      c.globalAlpha = C.starAlpha * (0.5 + 0.5 * ((i * 37) % 10) / 10);
+      c.beginPath(); c.arc(st.x, st.y, C.starSize, 0, Math.PI * 2); c.fill();
+    });
+    c.globalAlpha = 1;
+  }
+  // 행성: 얇은 선 원 + 고리 (고리 뒤쪽 반은 원에 가려짐)
+  c.lineWidth = small ? 1 : C.lineWidth; c.strokeStyle = cosRgba(C.lineColor, C.lineAlpha);
+  const ring = back => {
+    c.save(); c.translate(P.x, P.y); c.rotate(C.ringTilt); c.scale(1, 0.3);
+    c.beginPath(); c.arc(0, 0, P.rr, back ? Math.PI : 0, back ? Math.PI * 2 : Math.PI); c.restore(); c.stroke();
   };
   ring(true);
-  g = c.createRadialGradient(px - pr * 0.45, py - pr * 0.45, pr * 0.1, px, py, pr); // 왼쪽 위가 빛을 받아 밝음
-  g.addColorStop(0, C.planetLight); g.addColorStop(0.55, mixColor(C.planetLight, C.planetDark, 0.55)); g.addColorStop(1, C.planetDark);
-  c.fillStyle = g; c.beginPath(); c.arc(px, py, pr, 0, Math.PI * 2); c.fill();
+  c.fillStyle = sk.top; c.beginPath(); c.arc(P.x, P.y, P.r, 0, Math.PI * 2); c.fill(); c.stroke();
   ring(false);
+  return P;
 }
-const mixColor = (a, b, k) => rgbStr(hexRgb(a).map((v, i) => v + (hexRgb(b)[i] - v) * k));
 
 // ---------- 게임 화면 ----------
-let cosBg = null, cosBgKey = '', cosLastT = 0, cosMeteor = null, cosNextMeteor = 0;
-let cosTail = [], cosTailT = 0, cosLastCur = -1, cosSparks = [];
+let cosBg = null, cosBgKey = '', cosTw = [], cosLastT = 0, cosMeteor = null, cosNextMeteor = 0;
 function drawCosmosBack(){
   const C = TH.cosmos, dpr = nightDpr(), t = now(), dt = Math.min(0.1, (t - cosLastT) / 1000); cosLastT = t;
-  if (!cosStars) makeCosStars(C);
   const size = W + 'x' + H + 'x' + dpr;
   if (!cosBg || cosBgKey !== size){ // 화면 크기가 바뀔 때만 새로 그림
     if (!cosBg) cosBg = document.createElement('canvas');
     cosBg.width = Math.round(W * dpr); cosBg.height = Math.round(H * dpr);
     const c = cosBg.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
-    paintCosmos(c, TH, W, H, S, Math.max(0, document.getElementById('ui').getBoundingClientRect().bottom), false);
+    const ub = Math.max(0, document.getElementById('ui').getBoundingClientRect().bottom);
+    const P = paintCosmos(c, TH, W, H, S, ub, GY, false);
+    cosTw = nightStars(C.stars, W, H, GY - S * 0.35, P.x, P.y, P.rr * 0.5).slice(0, C.twinkle);
     cosBgKey = size;
   }
   ctx.drawImage(cosBg, 0, 0, W, H);
-  // 별 3겹: 캐릭터가 오른쪽으로 갈수록 왼쪽으로 흐름 (먼 별은 천천히, 가까운 별은 조금 빨리)
-  const ts = t / 1000;
-  cosStars.forEach((layer, li) => {
-    const sp = C.layers[li].speed, shift = camX * S * sp;
-    for (const st of layer){
-      const x = ((st.fx * W - shift) % W + W) % W, y = st.fy * H;
-      ctx.globalAlpha = st.tw ? st.a * (0.3 + 0.7 * (0.5 + 0.5 * Math.sin(ts / C.twinkleTime * Math.PI * 2 + st.ph))) : st.a;
-      ctx.fillStyle = st.col;
-      if (st.s < 1.1) ctx.fillRect(x - st.s / 2, y - st.s / 2, st.s, st.s);
-      else { ctx.beginPath(); ctx.arc(x, y, st.s / 2 + 0.3, 0, Math.PI * 2); ctx.fill(); }
-    }
-  });
-  // 별똥별: 10~20초에 한 번, 오른쪽 위에서 왼쪽 아래로 대각선
+  // 반짝이는 별 몇 개
+  ctx.fillStyle = '#FFFFFF';
+  for (const st of cosTw){
+    ctx.globalAlpha = C.starAlpha * (0.2 + 0.8 * (0.5 + 0.5 * Math.sin(t / 1000 / C.twinkleTime * Math.PI * 2 + st.ph)));
+    ctx.beginPath(); ctx.arc(st.x, st.y, C.starSize, 0, Math.PI * 2); ctx.fill();
+  }
+  // 별똥별: 10~20초에 한 번, 얇은 선이 대각선으로 지나감
   if (!cosNextMeteor) cosNextMeteor = t + (C.meteorMin + cosR() * (C.meteorMax - C.meteorMin)) * 1000;
   if (!cosMeteor && t > cosNextMeteor){
-    cosMeteor = {t: 0, x: W * (0.45 + cosR() * 0.5), y: H * (0.04 + cosR() * 0.25)};
+    cosMeteor = {t: 0, x: W * (0.4 + cosR() * 0.5), y: H * (0.05 + cosR() * 0.25)};
     cosNextMeteor = t + (C.meteorMin + cosR() * (C.meteorMax - C.meteorMin)) * 1000;
   }
   if (cosMeteor){
@@ -1205,94 +1179,30 @@ function drawCosmosBack(){
     const k = cosMeteor.t / C.meteorTime;
     if (k >= 1) cosMeteor = null;
     else {
-      const d = S * 0.9 * k, len = C.meteorLength * S * Math.min(1, k * 3);
-      const hx = cosMeteor.x - d * 0.82, hy = cosMeteor.y + d * 0.57, a = Math.sin(Math.PI * k);
+      const d = S * 0.8 * k, len = C.meteorLength * S, hx = cosMeteor.x - d * 0.82, hy = cosMeteor.y + d * 0.57;
       const g = ctx.createLinearGradient(hx, hy, hx + len * 0.82, hy - len * 0.57);
-      g.addColorStop(0, 'rgba(255,255,255,' + 0.9 * a + ')'); g.addColorStop(1, 'rgba(180,220,255,0)');
-      ctx.globalAlpha = 1; ctx.strokeStyle = g; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+      g.addColorStop(0, 'rgba(255,255,255,' + C.meteorAlpha * Math.sin(Math.PI * k) + ')'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.globalAlpha = 1; ctx.strokeStyle = g; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx + len * 0.82, hy - len * 0.57); ctx.stroke();
     }
   }
   ctx.globalAlpha = 1;
 }
-// 떠 있는 발판: 밝은 윗판 + 아래로 좁아지는 밑판 + 윗면 네온 띠 + 아래 추진기 불빛 (아래로 흐려짐)
-function drawCosmosPlatform(sx, w, top, hue, S0, L0, id){
-  const t = now() / 1000, sh = PL.slab * S, uh = PL.under * S, by = top + sh + uh;
-  // 추진기 불빛: 아래로 흐려지며 내려가는 빛 + 깜빡이는 불꽃
-  for (const fx of [0.36, 0.64]){
-    const x = sx + w * fx, fl = 0.8 + 0.2 * Math.sin(t * 17 + id * 3 + fx * 9);
-    if (PL.beam > 0){
-      const bl = PL.beam * S, bw = Math.max(4, w * 0.1), g = ctx.createLinearGradient(0, by, 0, by + bl);
-      g.addColorStop(0, cosRgba(PL.thruster, PL.beamAlpha * fl)); g.addColorStop(1, cosRgba(PL.thruster, 0));
-      ctx.fillStyle = g; ctx.fillRect(x - bw / 2, by, bw, bl);
-    }
-    const ts = PL.thrusterSize * S * fl;
-    ctx.globalAlpha = 0.9; ctx.drawImage(sprite('glow', PL.thruster), x - ts / 2, by - ts * 0.35, ts, ts); ctx.globalAlpha = 1;
-  }
-  // 밑판: 아래로 좁아지는 사다리꼴 (어둡게)
-  let g = ctx.createLinearGradient(0, top + sh, 0, by);
-  g.addColorStop(0, hsl(hue, S0, L0 - 0.04)); g.addColorStop(1, hsl(hue, S0, L0 - 0.12));
-  ctx.fillStyle = g; ctx.beginPath();
-  ctx.moveTo(sx, top + sh); ctx.lineTo(sx + w, top + sh); ctx.lineTo(sx + w * 0.8, by); ctx.lineTo(sx + w * 0.2, by); ctx.closePath(); ctx.fill();
-  // 윗판: 위가 밝은 금속판
-  g = ctx.createLinearGradient(0, top, 0, top + sh);
-  g.addColorStop(0, hsl(hue, S0, L0 + PL.topLight)); g.addColorStop(1, hsl(hue, S0, L0));
-  ctx.fillStyle = g; ctx.fillRect(sx, top, w, sh);
-  ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(sx, top + sh - 1, w, 1); // 윗판과 밑판 사이 이음매
-  // 윗면 가장자리 네온 띠
-  ctx.globalAlpha = PL.edgeAlpha; ctx.fillStyle = PL.edgeColor; ctx.fillRect(sx, top, w, Math.max(1, S * 0.004)); ctx.globalAlpha = 1;
-}
-// 네모 효과 (우주만): 점프할 때 별가루 꼬리, 착지할 때 작은 별가루가 튐 (완벽 착지면 더 크게 반짝)
-function drawCosmosFx(){
-  const t = now(), dt = Math.min(0.05, (t - (drawCosmosFx.last || t)) / 1000); drawCosmosFx.last = t;
-  const s = F.playerSize * S, cy = GY + player.y * S - s * player.sq / 2; // (꼬리·반짝임 가로 자리는 게임 속 위치로 저장 → 화면이 움직여도 제자리)
-  if (state === 'fly'){
-    cosTailT += dt;
-    while (cosTailT > CU.tail){ cosTailT -= CU.tail;
-      cosTail.push({x: player.x + (cosR() - 0.5) * F.playerSize * 0.5, y: cy + (cosR() - 0.5) * s * 0.5, life: 1, r: 1 + cosR() * 1.6}); }
-  } else cosTailT = 0;
-  if (cosLastCur !== cur){ // 새로 착지함
-    if (cosLastCur >= 0 && state !== 'fly'){
-      const perfect = cubeFlash > 0.5, n = perfect ? CU.perfectSparks : CU.landSparks;
-      for (let i = 0; i < n; i++){
-        const a = -Math.PI * cosR(), v = (perfect ? 90 : 55) * (0.4 + cosR());
-        cosSparks.push({x: player.x, y: GY, vx: Math.cos(a) * v / S, vy: Math.sin(a) * v, life: 1, r: (perfect ? 1.6 : 1.1) * (0.7 + cosR() * 0.6)});
-      }
-      if (perfect) cosSparks.push({x: player.x, y: cy, vx: 0, vy: 0, life: 1, r: s * 0.9, flash: true});
-    }
-    cosLastCur = cur;
-  }
-  if (state === 'ready') { cosTail = []; cosSparks = []; }
-  const img = sprite('glow', CU.tailColor);
-  ctx.globalCompositeOperation = 'lighter';
-  for (const p of cosTail){ p.life -= dt / CU.tailLife; if (p.life <= 0) continue;
-    const z = p.r * 4 * p.life, x = toX(p.x); ctx.globalAlpha = 0.9 * p.life; ctx.drawImage(img, x - z / 2, p.y - z / 2, z, z); }
-  for (const p of cosSparks){
-    p.life -= dt / (p.flash ? 0.35 : 0.6); if (p.life <= 0) continue;
-    if (p.flash){ // 완벽 착지: 네 갈래로 반짝
-      const z = p.r * (1.6 - p.life * 0.6), x = toX(p.x); ctx.globalAlpha = p.life * 0.8; ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(x - z, p.y - 0.8, z * 2, 1.6); ctx.fillRect(x - 0.8, p.y - z, 1.6, z * 2);
-      ctx.drawImage(img, x - z * 0.6, p.y - z * 0.6, z * 1.2, z * 1.2); continue;
-    }
-    p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 120 * dt;
-    const z = p.r * 4, x = toX(p.x); ctx.globalAlpha = p.life; ctx.drawImage(img, x - z / 2, p.y - z / 2, z, z);
-  }
-  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
-  cosTail = cosTail.filter(p => p.life > 0).slice(-40); cosSparks = cosSparks.filter(p => p.life > 0);
-}
-// 테마 카드 미리보기 (우주): 배경·성운·행성, 떠 있는 발판 둘, 흰 네모
+// 테마 카드 미리보기 (우주): 배경·성운·선 행성, 기둥 둘(아래는 어둠), 흰 네모 — 밤바다 카드와 같은 구성
 function drawCosmosPreview(c, w, h, t){
-  paintCosmos(c, t, w, h, 70, 0, true);
+  const C = t.cosmos, gy = h * 0.6;
+  paintCosmos(c, t, w, h, 70, 0, gy, true);
   const r = cosRand(5); c.fillStyle = '#FFFFFF';
-  for (let i = 0; i < 22; i++){ c.globalAlpha = 0.3 + r() * 0.6; c.fillRect(r() * w, r() * h * 0.9, 1, 1); }
+  for (let i = 0; i < 10; i++){ c.globalAlpha = 0.3 + r() * 0.4; c.fillRect(r() * w * 0.6, r() * h * 0.5, 1, 1); }
   c.globalAlpha = 1;
-  const p = t.pillar, [bh, bs, bl] = rgbToHsl(hexRgb(p.color)), gy = h * 0.6;
-  [[14, 34], [70, 30]].forEach(([x, pw]) => {
-    c.fillStyle = hsl(bh, bs, bl - 0.08); c.beginPath(); c.moveTo(x, gy + 4); c.lineTo(x + pw, gy + 4); c.lineTo(x + pw * 0.8, gy + 10); c.lineTo(x + pw * 0.2, gy + 10); c.fill();
-    c.fillStyle = hsl(bh, bs, bl + p.topLight); c.fillRect(x, gy, pw, 4);
-    c.globalAlpha = 0.8; c.fillStyle = p.edgeColor; c.fillRect(x, gy, pw, 1);
-    c.fillStyle = p.thruster; c.globalAlpha = 0.6; c.fillRect(x + pw * 0.33, gy + 10, 2, 5); c.fillRect(x + pw * 0.63, gy + 10, 2, 5); c.globalAlpha = 1;
+  const p = t.pillar, [bh, bs, bl] = rgbToHsl(hexRgb(p.color));
+  [[14, 34, 0], [70, 30, 1]].forEach(([x, pw, id]) => {
+    c.fillStyle = hsl(bh + Math.sin(id * p.hueStep) * p.hueRange, bs, bl); c.fillRect(x, gy, pw, h - gy);
+    c.globalAlpha = p.topAlpha; c.fillStyle = p.topColor; c.fillRect(x, gy, pw, 1); c.globalAlpha = 1;
   });
+  const g = c.createLinearGradient(0, gy + (h - gy) * C.fogStart, 0, gy + (h - gy) * C.fogEnd);
+  g.addColorStop(0, cosRgba(C.fogColor, 0)); g.addColorStop(1, cosRgba(C.fogColor, 1));
+  c.fillStyle = g; c.fillRect(0, gy + (h - gy) * C.fogStart, w, h);
 }
 
 // ---------- 빛 먼지 ----------
