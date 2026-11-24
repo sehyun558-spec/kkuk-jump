@@ -1114,7 +1114,35 @@ function cosPlanet(C, w, s, uiBottom){
   const r = C.planetSize * s, rr = r * C.ringSize;
   return {x: w - C.planetRight - rr, y: uiBottom + C.planetBelow + r, r, rr};
 }
-// 바탕 그림: 그라데이션 + 아주 흐린 성운 + 작은 점 별(반짝이는 별은 빼고) + 얇은 선 행성
+// 별 자리: 화면을 칸으로 나눠 칸마다 하나씩 → 한쪽에 몰리지 않고 골고루 퍼짐 (행성 둘레만 비움)
+// 앞의 white개는 흰 별, 그 뒤 color개는 색깔 별. 자리는 늘 같음
+function cosStarSpots(C, w, h, top, P){
+  const r = cosRand(77), n = C.stars + C.colorStars, cols = Math.max(1, Math.round(Math.sqrt(n * w / Math.max(1, top)))), rows = Math.ceil(n / cols) + 1;
+  const cells = [];
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) cells.push([i, j]);
+  for (let i = cells.length - 1; i > 0; i--){ const k = Math.floor(r() * (i + 1)); [cells[i], cells[k]] = [cells[k], cells[i]]; } // 칸 순서 섞기
+  const out = [];
+  for (const [i, j] of cells){
+    if (out.length >= n) break;
+    const x = (i + 0.15 + r() * 0.7) * w / cols, y = 8 + (j + 0.15 + r() * 0.7) * (top - 8) / rows, ph = r() * 6.28;
+    if (Math.hypot(x - P.x, y - P.y) < P.rr * 1.2) continue;
+    if (cosOnText(x, y, w, h)) continue; // 글자 줄 바로 위는 비움 (줄 사이·양옆에는 별이 있음)
+    out.push({x, y, ph, s: 0.6 + r() * 0.8});
+  }
+  return out;
+}
+// 글자 줄 자리 (첫 화면 제목·설명·BEST, 게임 중 점수·BEST, 게임 오버 점수): 별이 글자 위에 찍혀 점처럼 보이지 않게
+function cosOnText(x, y, w, h){
+  if (w < 200) return false; // 테마 카드 그림에는 글자가 없음
+  const Z = UI.size, ts = Math.min(S * 0.17, Z.title), big = Math.min(S * 0.22, Z.score), ty = h * 0.2, gy = ty + ts * 0.72 + 44, cy = h * 0.36;
+  const rows = [ // [가운데 높이, 위아래 반 높이, 좌우 반 너비]
+    [ty, ts * 0.65, ts * 1.7], [ty + ts * 0.72, 10, 80], [gy, 13, w * 0.33], [gy + Z.guide * 1.6, 13, w * 0.33], [gy + Z.guide * 1.6 + 34, 11, 60],
+    [h * 0.14, big * 0.6, big * 1.0], [h * 0.14 + big * 0.7, 11, 70],
+    [cy - 76, 11, 50], [cy, 70, 120], [cy + 78, 12, 110], [h * 0.72, 13, 90],
+  ];
+  return rows.some(([ry, rh, rw]) => Math.abs(y - ry) < rh + 4 && Math.abs(x - w / 2) < rw + 6);
+}
+// 바탕 그림: 그라데이션 + 아주 흐린 성운 + 작은 점 별(반짝이는 별·색깔 별은 빼고) + 얇은 선 행성
 function paintCosmos(c, t, w, h, s, uiBottom, gy, small){
   const C = t.cosmos, sk = t.sky.light[0];
   let g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, sk.top); g.addColorStop(1, sk.bottom);
@@ -1128,10 +1156,10 @@ function paintCosmos(c, t, w, h, s, uiBottom, gy, small){
   const P = small ? {x: w * 0.76, y: h * 0.24, r: 6, rr: 6 * C.ringSize} : cosPlanet(C, w, s, uiBottom);
   if (!small){
     c.fillStyle = '#FFFFFF';
-    nightStars(C.stars, w, h, gy - s * 0.35, P.x, P.y, P.rr * 0.5).forEach((st, i) => {
+    cosStarSpots(C, w, h, gy - s * 0.15, P).slice(0, C.stars).forEach((st, i) => {
       if (i < C.twinkle) return;
-      c.globalAlpha = C.starAlpha * (0.5 + 0.5 * ((i * 37) % 10) / 10);
-      c.beginPath(); c.arc(st.x, st.y, C.starSize, 0, Math.PI * 2); c.fill();
+      c.globalAlpha = C.starAlpha * (0.35 + 0.65 * ((i * 37) % 10) / 10);  // 밝기 제각각
+      c.beginPath(); c.arc(st.x, st.y, C.starSize * st.s, 0, Math.PI * 2); c.fill(); // 크기 제각각
     });
     c.globalAlpha = 1;
   }
@@ -1148,7 +1176,7 @@ function paintCosmos(c, t, w, h, s, uiBottom, gy, small){
 }
 
 // ---------- 게임 화면 ----------
-let cosBg = null, cosBgKey = '', cosTw = [], cosLastT = 0, cosMeteor = null, cosNextMeteor = 0;
+let cosBg = null, cosBgKey = '', cosTw = [], cosCol = [], cosLastT = 0, cosMeteor = null, cosNextMeteor = 0;
 function drawCosmosBack(){
   const C = TH.cosmos, dpr = nightDpr(), t = now(), dt = Math.min(0.1, (t - cosLastT) / 1000); cosLastT = t;
   const size = W + 'x' + H + 'x' + dpr;
@@ -1158,7 +1186,8 @@ function drawCosmosBack(){
     const c = cosBg.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
     const ub = Math.max(0, document.getElementById('ui').getBoundingClientRect().bottom);
     const P = paintCosmos(c, TH, W, H, S, ub, GY, false);
-    cosTw = nightStars(C.stars, W, H, GY - S * 0.35, P.x, P.y, P.rr * 0.5).slice(0, C.twinkle);
+    const spots = cosStarSpots(C, W, H, GY - S * 0.15, P);
+    cosTw = spots.slice(0, C.twinkle); cosCol = spots.slice(C.stars, C.stars + C.colorStars);
     cosBgKey = size;
   }
   ctx.drawImage(cosBg, 0, 0, W, H);
@@ -1166,8 +1195,17 @@ function drawCosmosBack(){
   ctx.fillStyle = '#FFFFFF';
   for (const st of cosTw){
     ctx.globalAlpha = C.starAlpha * (0.2 + 0.8 * (0.5 + 0.5 * Math.sin(t / 1000 / C.twinkleTime * Math.PI * 2 + st.ph)));
-    ctx.beginPath(); ctx.arc(st.x, st.y, C.starSize, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(st.x, st.y, C.starSize * st.s, 0, Math.PI * 2); ctx.fill();
   }
+  // 색깔 별: 대부분은 거의 안 보이다가, 가끔 은은하게 빛났다 흐려짐 (별마다 때가 다름)
+  cosCol.forEach((st, i) => {
+    const k = Math.pow(0.5 + 0.5 * Math.sin(t / 1000 / C.colorTime * Math.PI * 2 + st.ph * 3), 3);
+    if (k < 0.02) return;
+    const col = C.colorList[i % C.colorList.length], g = C.colorGlow;
+    ctx.globalAlpha = 0.5 * k; ctx.drawImage(sprite('glow', col), st.x - g, st.y - g, g * 2, g * 2);
+    ctx.globalAlpha = 0.25 + 0.65 * k; ctx.fillStyle = col;
+    ctx.beginPath(); ctx.arc(st.x, st.y, C.colorSize, 0, Math.PI * 2); ctx.fill();
+  });
   // 별똥별: 10~20초에 한 번, 얇은 선이 대각선으로 지나감
   if (!cosNextMeteor) cosNextMeteor = t + (C.meteorMin + cosR() * (C.meteorMax - C.meteorMin)) * 1000;
   if (!cosMeteor && t > cosNextMeteor){
