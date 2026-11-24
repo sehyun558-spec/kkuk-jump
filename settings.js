@@ -513,8 +513,7 @@ const SETTINGS = {
       },
     },
     // =================================================================
-    //  우주 (일식): 고요한 우주에서 검은 행성이 해를 가린 순간, 가장자리에만 빛 고리가 빛나는 장면
-    //  화면에 있는 것: 검정 바탕, 흐린 별 몇 개, 일식 하나, 흑요석 기둥, 빛 조각 네모. 색은 검정·청록·금빛만.
+    //  우주: 별과 성운이 가득한 우주 공간에 떠 있는 우주 정거장 발판을 건너는 느낌
     //  원래 어두운 테마라 다크 모드에서도 같게 보입니다.
     //  ※ name: '우주' 는 산 기록을 구분하는 이름이라 바꾸면 산 사람이 다시 사야 합니다.
     // =================================================================
@@ -522,136 +521,128 @@ const SETTINGS = {
       name: '우주',
       price: 100,   // 가격 (별가루 100개)
 
-      // ---------- 바탕: 검정 (점수가 올라도 그대로) ----------
+      // ---------- 배경 색: 위 아주 어두운 남색 → 아래 보라색 ----------
       sky: {
-        every: 15,        // 몇 점마다 빛 고리 색 비율이 다음 단계로 (아래 eclipse.stages)
-        fadeTime: 10,     // 다음 단계로 넘어가는 시간 (초). 크게 하면 → 더 천천히
-        resetTime: 1,     // 다시 시작할 때 첫 단계로 돌아가는 시간 (초)
-        light: [ { name: '우주', top: '#06070A', bottom: '#08090D' } ],  // 위 → 아래 (거의 검정)
-        dark:  [ { name: '우주', top: '#06070A', bottom: '#08090D' } ],  // 다크 모드도 같게
+        every: 0,         // 점수에 따라 바뀌지 않음 (0)
+        fadeTime: 10, resetTime: 1,
+        light: [ { name: '우주', top: '#070A20', bottom: '#24133F' } ],
+        dark:  [ { name: '우주', top: '#070A20', bottom: '#24133F' } ],  // 다크 모드도 같게
       },
 
-      // ---------- 일식·별·어둠 (움직이지 않는 부분은 그림 한 장으로 미리 그려 두고 다시 씀) ----------
-      eclipse: {
-        // [행성 자리·크기] 오른쪽 위 버튼 아래, 제목·점수 오른쪽 빈 곳. 글자와 겹치면 알아서 작아짐
-        size: 0.11,           // 행성 반지름 최대 크기 (기준 크기 단위). 크게 하면 → 큰 행성 (자리가 좁으면 그만큼만)
-        right: 26,            // 화면 오른쪽 끝에서 행성 가장자리까지 (픽셀)
-        gap: 30,              // 제목·점수 오른쪽 끝에서 행성(빛 고리)까지 최소 거리 (픽셀). 크게 하면 → 행성이 작아지며 글자와 더 떨어짐
-        below: 20,            // 오른쪽 위 버튼 아래에서 행성 가장자리까지 (픽셀)
-        planet: '#050608',    // 행성 색 (바탕과 거의 같은 검정 → 윤곽은 빛 고리로만 보임)
-        // [빛 고리]
-        teal: '#5FE0D2',      // 고리 왼쪽 아래 색 (청록빛)
-        gold: '#F5C27A',      // 고리 오른쪽 위 색 (따뜻한 금빛)
-        ring: 2,              // 고리 두께 (픽셀)
-        ringAlpha: 0.9,       // 고리 밝기 (0~1)
-        soft: 0.5,            // 두 색이 고리를 따라 섞이는 폭 (0~1). 크게 하면 → 더 부드럽게 이어짐
-        // [점수에 따른 고리 색 비율] teal = 고리에서 청록이 차지하는 비율 (0~1, 나머지는 금빛)
-        stages: [
-          { name: '청록이 많은 고리', teal: 0.68 },
-          { name: '반반', teal: 0.5 },
-          { name: '금빛이 많은 고리', teal: 0.32 },
+      // ---------- 우주 배경 (성운·행성·달은 그림 한 장으로 미리 그려 두고, 별·별똥별만 매 순간 그림) ----------
+      cosmos: {
+        // [성운] 뿌연 빛 구름. x·y = 화면 비율 위치 (왼쪽·위 0 ~ 오른쪽·아래 1), r = 크기 (기준 크기 단위)
+        nebulae: [
+          { x: 0.18, y: 0.16, r: 0.55, color: '#7B4FD6' },  // 왼쪽 위 보라
+          { x: 0.85, y: 0.42, r: 0.5,  color: '#2BB3B0' },  // 오른쪽 가운데 청록
+          { x: 0.45, y: 0.6,  r: 0.45, color: '#8A3FC9' },  // 아래 가운데 보라
+          { x: 0.05, y: 0.5,  r: 0.35, color: '#2A9FB8' },  // 왼쪽 청록
         ],
-        // [코로나] 고리 바깥 아주 옅은 빛 번짐 1겹
-        corona: 1.55,         // 번짐이 퍼지는 크기 (행성 크기의 몇 배)
-        coronaAlpha: 0.14,    // 번짐 진하기 (0~1). 작게 하면 → 더 옅게
-        breath: 0.25,         // 고리·번짐이 숨 쉬듯 밝기가 바뀌는 폭 (0~1). 0이면 → 가만히
-        breathTime: 9,        // 한 번 숨 쉬는 시간 (초). 크게 하면 → 더 천천히
-        // [빛 점] 금빛 쪽 가장자리 한 곳 ("다이아몬드 반지")
-        spotAngle: -50,       // 빛 점 자리 (도. 0 = 오른쪽, -90 = 위쪽)
-        spotSize: 1.6,        // 빛 점 크기 (픽셀)
-        spotGlow: 7,          // 빛 점 둘레 번짐 크기 (픽셀)
-        spotAlpha: 0.7,       // 빛 점 밝기 (0~1)
-        // [별] 아주 드문드문, 아주 흐리게 (제목·점수·버튼·일식 둘레·네모가 뛰는 높이는 비움)
-        stars: 10,            // 별 개수
-        starSize: 0.8,        // 별 크기 (픽셀)
-        starAlpha: 0.38,      // 별 진하기 (0~1)
-        twinkle: 2,           // 아주 천천히 반짝이는 별 개수
-        twinkleTime: 7,       // 한 번 반짝이는 시간 (초)
-        // [어둠] 기둥 윗면 0 ~ 화면 맨 아래 1 사이의 위치
-        fogStart: 0.15,       // 어둠이 시작되는 곳. 작게 하면 → 기둥이 더 일찍 흐려짐
-        fogEnd: 0.75,         // 여기부터는 완전히 어둠 (기둥 끝선이 절대 안 보이게)
-        fogColor: '#08090D',  // 어둠 색 (바탕 아래쪽 색과 같게)
-        redraw: 0.4,          // 고리 색이 바뀌는 동안 그림을 다시 그리는 간격 (초). 크게 하면 → 더 가볍게
+        nebulaAlpha: 0.16,    // 성운 진하기 (0~1). 크게 하면 → 더 진하게 (글자가 묻히지 않게 낮게)
+        // [별] 3겹: 먼 별은 작고 흐리고 천천히, 가까운 별은 크고 밝고 조금 빨리 움직임 (깊이감)
+        layers: [
+          { count: 45, size: 0.6, alpha: 0.5,  speed: 0.04 },  // 먼 별
+          { count: 25, size: 1.0, alpha: 0.7,  speed: 0.1 },   // 중간 별
+          { count: 10, size: 1.5, alpha: 0.9,  speed: 0.2 },   // 가까운 별
+        ],
+        // count = 개수, size = 크기 (픽셀), alpha = 밝기, speed = 캐릭터가 움직일 때 따라 흐르는 빠르기 (기둥 = 1)
+        twinkle: 0.3,         // 반짝이는 별 비율 (0~1). 0.3 = 열 개 중 세 개
+        twinkleTime: 3,       // 한 번 반짝이는 시간 (초). 크게 하면 → 더 천천히
+        starColors: ['#FFFFFF', '#CFE3FF', '#FFE9D6'],  // 별 색 (흰색·푸른빛·따뜻한 빛이 섞임)
+        // [별똥별]
+        meteorMin: 10,        // 별똥별이 지나가는 간격: 최소 (초)
+        meteorMax: 20,        // 별똥별이 지나가는 간격: 최대 (초)
+        meteorTime: 0.9,      // 한 번 지나가는 시간 (초)
+        meteorLength: 0.35,   // 꼬리 길이 (기준 크기 단위)
+        // [큰 행성] 오른쪽 위, 일부는 화면 밖으로 나감
+        planetSize: 0.14,     // 행성 반지름 (기준 크기 단위). 크게 하면 → 큰 행성
+        planetX: 0.5,         // 화면 오른쪽 끝 기준 위치 (행성 크기의 몇 배만큼 화면 밖으로 나가나)
+        planetBelow: 10,      // 오른쪽 위 버튼 아래에서 행성 가운데까지 (픽셀, 행성 크기만큼 더 내려감)
+        planetLight: '#B79CFF', // 빛을 받는 쪽 색 (왼쪽 위)
+        planetDark: '#1A1238',  // 그늘진 쪽 색 (오른쪽 아래)
+        planetGlow: 0.3,      // 행성 둘레 은은한 빛 번짐 진하기 (0~1)
+        ringColor: '#E6D5FF', // 고리 색
+        ringAlpha: 0.55,      // 고리 진하기 (0~1)
+        ringSize: 1.6,        // 고리 크기 (행성 크기의 몇 배)
+        ringTilt: 0.35,       // 고리 기울기 (라디안, + 면 왼쪽 끝이 올라감 → 제목·점수를 피해 위로 지나감)
+        // [작은 달] 화면 왼쪽 멀리
+        moonX: 0.1,           // 가로 위치 (화면 비율)
+        moonY: 0.46,          // 세로 위치 (화면 비율)
+        moonSize: 0.022,      // 반지름 (기준 크기 단위)
+        moonColor: '#9DE7E0', // 색 (청록빛)
       },
 
-      // ---------- 기둥: 검은 흑요석 ----------
+      // ---------- 발판: 공중에 떠 있는 우주 정거장 발판 ----------
       pillar: {
-        color: '#14161B',     // 기둥 색 (흑요석). 하늘에서 뽑지 않고 이 색을 씀
-        hueRange: 4,          // 기둥마다 색이 달라지는 폭 (아주 작게)
-        hueStep: 0.9,         // 옆 기둥으로 갈 때 색이 바뀌는 빠르기
-        shade: 0,             // 옆면 그늘 (없음)
-        topBand: 0.005,       // 윗면 가장자리 띠 두께 (기준 크기 단위)
-        topColor: '#5FE0D2',  // 윗면 띠 색 (대부분 청록빛)
-        topColor2: '#F5C27A', // 일식이 있는 오른쪽 끝만 살짝 금빛
-        topAlpha: 0.35,       // 윗면 띠 진하기 (0~1)
-        lineGlow: 0.45,       // "완벽!" 기준선 빛 번짐 진하기 (0~1)
-        lineColor: '#F5C27A', // "완벽!" 기준선 색 (금빛)
+        color: '#3A3F63',     // 발판 몸체 색 (어두운 금속빛 남보라)
+        hueRange: 8,          // 발판마다 색이 달라지는 폭 (작게)
+        hueStep: 0.9,
+        slab: 0.05,           // 발판 윗판 두께 (기준 크기 단위)
+        under: 0.085,         // 아래로 좁아지는 밑판 깊이 (기준 크기 단위)
+        topLight: 0.12,       // 윗면이 몸체보다 얼마나 밝은가
+        edgeColor: '#6FE8FF', // 윗면 가장자리 네온 띠 색
+        edgeAlpha: 0.55,      // 네온 띠 진하기 (0~1)
+        thruster: '#6FD8FF',  // 아래 추진기 불빛 색
+        thrusterSize: 0.05,   // 추진기 불빛 크기 (기준 크기 단위)
+        beam: 0.1,            // 추진기 아래로 흐려지며 내려가는 빛 길이 (기준 크기 단위). 0이면 → 없음
+        beamAlpha: 0.16,      // 그 빛 진하기 (0~1)
+        lineGlow: 1.0,        // "완벽!" 기준선 빛 번짐 진하기 (0~1)
+        lineColor: '#6FF6FF', // "완벽!" 기준선 색 (네온 청록)
+        neon: true,           // "완벽!" 기준선을 네온처럼 또렷하게 (가운데 흰 심 + 밝은 번짐)
         // (아래 값들은 꿈 테마와 모양을 맞추려고 둔 것. 우주에서는 쓰이지 않음)
-        darker: 0, darkLift: 0, saturate: 0, topLight: 0, fogStart: 0.15, fogEnd: 0.75,
+        darker: 0, darkLift: 0, saturate: 0, topBand: 0.012, shade: 0, fogStart: 0.12, fogEnd: 0.8,
       },
 
-      // ---------- 네모: "빛 조각" ----------
+      // ---------- 네모: 흰 큐브 + 은은한 푸른 빛 ----------
       cube: {
         light: {
-          top: '#FFFFFF',           // 몸통 위쪽 (흰색)
-          bottom: '#DFF7F3',        // 몸통 아래쪽 (연한 청록)
-          glow: '#8FE6DC',          // 둘레 빛 색 (은은한 청록)
-          outline: '#000000',       // (어두운 배경이라 안 씀)
-          trail: '#CFF2EC',         // 점프 잔상 색 (연한 청록)
-          shadow: '#000000',        // 기둥 위 그림자 색
+          top: '#FFFFFF', bottom: '#E4EEFF',  // 몸통 (흰색, 아래쪽만 아주 살짝 푸른빛)
+          glow: '#7FC4FF',          // 둘레 푸른 빛
+          outline: '#000000', trail: '#BFD9FF', shadow: '#000000',
         },
-        dark: {                     // 다크 모드도 같게
-          top: '#FFFFFF', bottom: '#DFF7F3', glow: '#8FE6DC',
-          outline: '#000000', trail: '#CFF2EC', shadow: '#000000',
+        dark: {
+          top: '#FFFFFF', bottom: '#E4EEFF', glow: '#7FC4FF',
+          outline: '#000000', trail: '#BFD9FF', shadow: '#000000',
         },
-        sparkleSize: 0.45,    // 왼쪽 위 작은 반짝임 크기 (네모 크기 기준)
-        sparkleAlpha: 0.7,
-        glowSize: 2.1,        // 둘레 빛 크기 (네모 크기의 몇 배)
-        glowAlpha: 0.22,      // 둘레 빛 진하기 (아주 은은하게)
-        glowAlphaDark: 0.22,  // 다크 모드도 같게
-        outlineAlpha: 0,      // 윤곽 그늘 (없음)
-        outlineSize: 1.5,
-        chargeGlow: 1.0,      // 꾹 누를수록 빛이 밝아지는 정도
-        chargeGrow: 0.35,     // 꾹 누를수록 빛이 커지는 정도
-        trailCount: 4,        // 점프 잔상 개수 (짧게)
-        trailAlpha: 0.1,      // 잔상 진하기 (아주 흐리게)
-        trailFade: 10,        // 잔상이 사라지는 빠르기 (크게: 더 짧게)
-        perfectFlash: 0.75,   // PERFECT 착지 때 한 번 환해지는 정도 (0~1)
-        perfectFlashTime: 0.35,
-        shadowAlpha: 0.1,     // 기둥 위 그림자 진하기 (아주 옅게)
-        shadowSize: 1.3,
-        shadowFade: 0.4,
-        fallFade: 0.45,       // 떨어질 때 이만큼 내려가면 완전히 사라짐 (어둠 속으로)
+        sparkleSize: 0.5, sparkleAlpha: 0.8,
+        glowSize: 2.4,        // 둘레 빛 크기 (네모 크기의 몇 배)
+        glowAlpha: 0.42,      // 둘레 빛 진하기 (은은하게)
+        glowAlphaDark: 0.42,
+        outlineAlpha: 0, outlineSize: 1.5,
+        chargeGlow: 0.9, chargeGrow: 0.4,
+        trailCount: 0,        // 네모 잔상 대신 별가루 꼬리를 씀 (아래 tail)
+        trailAlpha: 0, trailFade: 8,
+        perfectFlash: 0.8, perfectFlashTime: 0.35,
+        shadowAlpha: 0.15, shadowSize: 1.3, shadowFade: 0.4,
+        fallFade: 0.6,        // 떨어질 때 이만큼 내려가면 우주 속으로 사라짐
+        // [별가루 꼬리·착지 반짝임] (우주만)
+        tail: 0.03,           // 점프할 때 꼬리 알갱이가 나오는 간격 (초). 작게 하면 → 꼬리가 촘촘
+        tailLife: 0.5,        // 꼬리 알갱이가 사라지는 시간 (초)
+        tailColor: '#BFE4FF', // 꼬리 색
+        landSparks: 6,        // 보통 착지 때 튀는 별가루 개수
+        perfectSparks: 14,    // 완벽 착지 때 튀는 별가루 개수 (더 크게 반짝)
       },
 
       // ---------- 효과 색 ----------
       effects: {
-        sparkColor: '#F5C27A',  // PERFECT 때 튀는 조각 색 (금빛)
-        sparkSize: 0.6,
-        ringColor: '#F5C27A',   // PERFECT 착지 고리 색 (금빛)
+        sparkColor: '#BFE4FF', sparkSize: 0.8,
+        ringColor: '#6FF6FF',   // 완벽 착지 고리 색 (네온 청록)
       },
 
-      // ---------- 별가루: 모양·이름은 같고, 빛 색만 금빛 ----------
+      // ---------- 별가루: 모양·이름은 같고, 빛 색만 푸른빛 ----------
       stardust: {
-        light: { star: '#FFFFFF', glow: '#F5C27A' },
-        dark:  { star: '#FFFFFF', glow: '#F5C27A' },
-        glowAlpha: 0.75,
-        glowSize: 4,
+        light: { star: '#FFFFFF', glow: '#9FD4FF' },
+        dark:  { star: '#FFFFFF', glow: '#9FD4FF' },
+        glowAlpha: 0.75, glowSize: 4,
       },
 
-      // ---------- 빛 먼지: 우주는 없음 (별가루는 네모 자리에서 바로 별이 되어 날아감) ----------
-      dust: {
-        count: 0, sizeMin: 1, sizeMax: 2, speed: 0, sway: 0, alphaMin: 0, alphaMax: 0, twinkle: 0,
-      },
+      // ---------- 빛 먼지: 없음 (별가루는 네모 자리에서 바로 별이 되어 날아감) ----------
+      dust: { count: 0, sizeMin: 1, sizeMax: 2, speed: 0, sway: 0, alphaMin: 0, alphaMax: 0, twinkle: 0 },
 
-      // ---------- 가장자리: 우주는 없음 (검정 바탕에서는 둥근 얼룩처럼 보여서 뺌) ----------
-      vignette: {
-        size: 0,
-        light: '',
-        dark: '',
-      },
+      // ---------- 가장자리: 살짝 어둡게 ----------
+      vignette: { size: 0.45, light: 'rgba(3,2,12,0.3)', dark: 'rgba(3,2,12,0.3)' },
 
-      // ---------- 글자·버튼·창: 흰 글자 + 어두운 반투명 유리 ----------
+      // ---------- 글자·버튼·창 ----------
       ui: {
         fontEn: 'Quicksand', fontKo: 'Pretendard',
         koWeight: 500, koWeightStrong: 600,
@@ -660,24 +651,24 @@ const SETTINGS = {
         track: 0.12, titleEnTrack: 0.42,
         size: { score: 104, scoreOver: 124, small: 15, title: 60, titleEn: 12, guide: 16, label: 16, retry: 17 },
         floatTitle: 0, floatTime: 3.6,
-        smallText: '#9AA3A8',   // 작은 글자 색 (연한 회색). 점수·제목·NEW BEST는 또렷한 흰색
+        smallText: '#C3C9E8',   // 작은 글자 색 (연한 푸른 회색)
         light: {
-          text: '#E8ECEE', soft: '#8F989D',
-          pill: 'rgba(255,255,255,0.08)',     // 위쪽 버튼 바탕
-          glass: 'rgba(14,15,19,0.72)',       // 테마 창 바탕 (검정 기운의 어두운 유리)
-          scrim: 'rgba(0,0,0,0.4)',           // 창 뒤를 살짝 가리는 막
-          overVeil: 'rgba(2,3,5,0.45)',       // 게임 오버 때 화면 위 어두운 막
-          shadow: 'rgba(0,0,0,0.4)',          // 흰 글자 밑 옅은 그림자
-          useBg: '#E8ECEE', useText: '#08090D',
+          text: '#ECEBFA', soft: '#A3A6C8',
+          pill: 'rgba(255,255,255,0.1)',
+          glass: 'rgba(18,14,40,0.72)',
+          scrim: 'rgba(4,2,14,0.4)',
+          overVeil: 'rgba(6,4,20,0.45)',
+          shadow: 'rgba(0,0,0,0.55)',   // 흰 글자 그림자를 조금 진하게 (배경 위에서도 잘 읽히게)
+          useBg: '#ECEBFA', useText: '#120E28',
         },
-        dark: {                 // 다크 모드도 같게
-          text: '#E8ECEE', soft: '#8F989D',
-          pill: 'rgba(255,255,255,0.08)',
-          glass: 'rgba(14,15,19,0.72)',
-          scrim: 'rgba(0,0,0,0.4)',
-          overVeil: 'rgba(2,3,5,0.45)',
-          shadow: 'rgba(0,0,0,0.4)',
-          useBg: '#E8ECEE', useText: '#08090D',
+        dark: {
+          text: '#ECEBFA', soft: '#A3A6C8',
+          pill: 'rgba(255,255,255,0.1)',
+          glass: 'rgba(18,14,40,0.72)',
+          scrim: 'rgba(4,2,14,0.4)',
+          overVeil: 'rgba(6,4,20,0.45)',
+          shadow: 'rgba(0,0,0,0.55)',
+          useBg: '#ECEBFA', useText: '#120E28',
         },
       },
     },
