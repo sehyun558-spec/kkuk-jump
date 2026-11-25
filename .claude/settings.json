@@ -1,0 +1,20 @@
+{
+  "enabledPlugins": {
+    "ait@apps-in-toss": true,
+    "frontend-design@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "apps-in-toss": {
+      "source": {
+        "source": "github",
+        "repo": "toss/apps-in-toss-harness"
+      }
+    },
+    "claude-plugins-official": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-official"
+      }
+    }
+  }
+}
